@@ -1,5 +1,9 @@
 # Ansible Collection: mykola_kharchenko.mssql_cdc
 
+[![CI](https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/actions/workflows/ci.yml/badge.svg)](https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/actions/workflows/ci.yml)
+[![Galaxy](https://img.shields.io/badge/galaxy-mykola__kharchenko.mssql__cdc-blue)](https://galaxy.ansible.com/ui/repo/published/mykola_kharchenko/mssql_cdc/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Declarative management of Microsoft SQL Server Change Data Capture (CDC) for
 Ansible. Native modules, a role and example playbooks so a single play converges
 CDC across a fleet of databases — with `--check`, `--diff` and idempotency
@@ -81,8 +85,41 @@ plugins/
   module_utils/cdc.py     # shared connection + error mapping
 roles/cdc/                # opinionated role that loops over a table list
 playbooks/                # enable.yml, drift.yml, apply.yml
-tests/                    # unit + integration (ansible-test)
+tests/                    # ansible-test sanity + pytest integration
 ```
+
+## Collection vs the `mssqlcdcmgr` CLI
+
+This collection and the [`mssqlcdcmgr`](https://github.com/mykola-kharchenko/mssqlcdcmgr)
+Python CLI share the same engine; pick the surface that fits your workflow:
+
+| Use this collection when…                                | Use the CLI when…                                       |
+|----------------------------------------------------------|---------------------------------------------------------|
+| Your team already runs Ansible (inventory, vault, AAP)   | You want a single self-contained binary                 |
+| You want native `--check` / `--diff` + standard recap    | You want fast (~50 ms) startup for `validate`/`plan`    |
+| You want CDC declared alongside other DB/OS state        | You want a programmatic Python API (`compute_diff`, …)  |
+| Rolling/serial applies, tags, block/rescue matter        | You need the DBML schema export (`mssqlcdcmgr schema`)  |
+
+Both share the same diff semantics, so a config "ported" between them produces
+identical plans.
+
+## Development
+
+```bash
+# Sanity (matches CI)
+pip install "ansible-core>=2.16"
+mkdir -p /tmp/coll/ansible_collections/mykola_kharchenko
+cp -r . /tmp/coll/ansible_collections/mykola_kharchenko/mssql_cdc
+( cd /tmp/coll/ansible_collections/mykola_kharchenko/mssql_cdc \
+  && ansible-test sanity --python 3.12 )
+
+# Integration (needs Docker + ODBC Driver 18)
+pip install -r tests/integration/requirements.txt
+ansible-galaxy collection install .
+pytest tests/integration -v
+```
+
+See [RELEASING.md](RELEASING.md) for the release process.
 
 ## License
 

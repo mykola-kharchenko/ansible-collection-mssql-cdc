@@ -55,18 +55,18 @@ def mssql():
 
     host = container.get_container_host_ip()
     port = int(container.get_exposed_port(1433))
-    last = None
-    for _ in range(60):
+    last_error = None
+    for _attempt in range(60):
         try:
             conn = pyodbc.connect(_admin_cs(host, port, "master"), autocommit=True, timeout=5)
             conn.close()
             break
         except pyodbc.Error as exc:
-            last = exc
+            last_error = exc
             time.sleep(3)
     else:
         container.stop()
-        pytest.skip(f"SQL Server never became ready: {last}")
+        pytest.skip(f"SQL Server never became ready: {last_error}")
 
     try:
         yield host, port
@@ -119,6 +119,7 @@ def _run_playbook(tmp_path, playbook_text, extra_args=()):
         capture_output=True,
         text=True,
         env=env,
+        check=False,
     )
 
 

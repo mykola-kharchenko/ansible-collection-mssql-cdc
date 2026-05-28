@@ -13,8 +13,25 @@ Initial release.
 ### Added
 
 - Collection scaffold (`mykola_kharchenko.mssql_cdc`) targeting
-  `ansible-core >= 2.15`, building on the
+  `ansible-core >= 2.15`, built on the
   [`mssqlcdcmgr`](https://github.com/mykola-kharchenko/mssqlcdcmgr) engine.
+- `cdc_db` module — enable/disable database-level CDC (idempotent,
+  `check_mode` + `diff_mode`).
+- `cdc_table` module — declarative capture-instance management with
+  `state=present|absent`, safe `_vN` recreate (default) or in-place unsafe
+  recreate, `check_mode` and `diff_mode`.
+- `cdc_facts` module — read-only; registers `ansible_facts.mssql_cdc` with the
+  live CDC inventory of a database.
+- `cdc` role — opinionated wrapper that converges database-level state plus a
+  list of capture instances and a removal list.
+- Sample playbooks: `apply.yml` (fleet reconcile via role), `drift.yml`
+  (cron-friendly drift detector), `enable.yml` (single-database first touch).
+- CI: `ansible-test sanity` matrix over ansible-core 2.16/2.17/2.18 × Python
+  3.11/3.12; PR-gated `pytest` integration suite that spins up SQL Server 2022
+  via testcontainers and drives the modules through real `ansible-playbook`
+  runs.
+- Publishing workflow — Galaxy publish on `v*` tag via the `galaxy` environment
+  and `GALAXY_API_KEY` secret (see [RELEASING.md](RELEASING.md)).
 
 [Unreleased]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/releases/tag/v0.1.0

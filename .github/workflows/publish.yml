@@ -1,0 +1,68 @@
+name: Publish to Ansible Galaxy
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build collection tarball
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ansible_collections/mykola_kharchenko/mssql_cdc
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install "ansible-core>=2.16"
+
+      - name: Build collection
+        working-directory: ansible_collections/mykola_kharchenko/mssql_cdc
+        run: ansible-galaxy collection build --output-path dist/
+
+      - name: Upload tarball as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: collection
+          path: ansible_collections/mykola_kharchenko/mssql_cdc/dist/*.tar.gz
+
+  publish:
+    name: Publish to Ansible Galaxy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: galaxy
+      url: https://galaxy.ansible.com/ui/repo/published/mykola_kharchenko/mssql_cdc/
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install "ansible-core>=2.16"
+
+      - name: Download collection tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: collection
+          path: dist/
+
+      # Galaxy publishing uses an API key stored as the GALAXY_API_KEY secret on
+      # the `galaxy` environment. Generate one at
+      # https://galaxy.ansible.com/me/preferences and add it to the repo:
+      # Settings -> Environments -> galaxy -> Add secret.
+      - name: Publish
+        env:
+          GALAXY_API_KEY: ${{ secrets.GALAXY_API_KEY }}
+        run: |
+          if [ -z "$GALAXY_API_KEY" ]; then
+            echo "::error::GALAXY_API_KEY is not set on the 'galaxy' environment"
+            exit 1
+          fi
+          ansible-galaxy collection publish dist/*.tar.gz --api-key "$GALAXY_API_KEY"
