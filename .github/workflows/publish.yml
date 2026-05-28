@@ -38,7 +38,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment:
-      name: galaxy
+      name: Ansible Galaxy
       url: https://galaxy.ansible.com/ui/repo/published/mykola_kharchenko/mssql_cdc/
     steps:
       - uses: actions/setup-python@v5
@@ -53,16 +53,16 @@ jobs:
           name: collection
           path: dist/
 
-      # Galaxy publishing uses an API key stored as the GALAXY_API_KEY secret on
-      # the `galaxy` environment. Generate one at
-      # https://galaxy.ansible.com/me/preferences and add it to the repo:
-      # Settings -> Environments -> galaxy -> Add secret.
+      # Galaxy publishing uses an API key stored as the ANSIBLE_GALAXY_API_KEY
+      # secret on the "Ansible Galaxy" environment. Generate one at
+      # https://galaxy.ansible.com/me/preferences and add it under
+      # repo Settings -> Environments -> Ansible Galaxy -> Add secret.
       - name: Publish
         env:
-          GALAXY_API_KEY: ${{ secrets.GALAXY_API_KEY }}
+          ANSIBLE_GALAXY_API_KEY: ${{ secrets.ANSIBLE_GALAXY_API_KEY }}
         run: |
-          if [ -z "$GALAXY_API_KEY" ]; then
-            echo "::error::GALAXY_API_KEY is not set on the 'galaxy' environment"
+          if [ -z "$ANSIBLE_GALAXY_API_KEY" ]; then
+            echo "::error::ANSIBLE_GALAXY_API_KEY is not set on the 'Ansible Galaxy' environment"
             exit 1
           fi
-          ansible-galaxy collection publish dist/*.tar.gz --api-key "$GALAXY_API_KEY"
+          ansible-galaxy collection publish dist/*.tar.gz --api-key "$ANSIBLE_GALAXY_API_KEY"

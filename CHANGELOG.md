@@ -31,8 +31,9 @@ Initial release.
   3.11/3.12; PR-gated `pytest` integration suite that spins up SQL Server 2022
   via testcontainers and drives the modules through real `ansible-playbook`
   runs.
-- Publishing workflow — Galaxy publish on `v*` tag via the `galaxy` environment
-  and `GALAXY_API_KEY` secret (see [RELEASING.md](RELEASING.md)).
+- Publishing workflow — Galaxy publish on `v*` tag via the *Ansible Galaxy*
+  environment and `ANSIBLE_GALAXY_API_KEY` secret (see
+  [RELEASING.md](RELEASING.md)).
 
 [Unreleased]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/releases/tag/v0.1.0
