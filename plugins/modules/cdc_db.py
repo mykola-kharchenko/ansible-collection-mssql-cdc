@@ -67,8 +67,10 @@ requirements:
   - "Microsoft ODBC Driver 18 for SQL Server + unixODBC"
 attributes:
   check_mode:
+    description: Reports what would change without invoking C(sp_cdc_enable_db) / C(sp_cdc_disable_db).
     support: full
   diff_mode:
+    description: Returns a before/after JSON snippet of the C(is_cdc_enabled) flag.
     support: full
 notes:
   - >-

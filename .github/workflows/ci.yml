@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  sanity:
+    name: Sanity (ansible ${{ matrix.ansible }} / py ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ansible: ["2.16", "2.17", "2.18"]
+        python: ["3.11", "3.12"]
+        exclude:
+          # ansible-core 2.16 supports Python 3.10-3.12; 2.18 drops 3.10/3.11 from
+          # the controller. Keep the matrix small but representative.
+          - { ansible: "2.18", python: "3.11" }
+
+    # ansible-test sanity requires the collection to live at
+    # ansible_collections/<namespace>/<name>/ — checkout into that layout.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ansible_collections/mykola_kharchenko/mssql_cdc
+
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install ansible-core ${{ matrix.ansible }}
+        run: pip install "ansible-core~=${{ matrix.ansible }}.0"
+
+      - name: Run ansible-test sanity
+        working-directory: ansible_collections/mykola_kharchenko/mssql_cdc
+        run: ansible-test sanity --python ${{ matrix.python }} --color -v
+
+  integration:
+    name: Integration (real SQL Server 2022)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ansible_collections/mykola_kharchenko/mssql_cdc
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ODBC Driver 18 for SQL Server
+        run: |
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+            | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc > /dev/null
+          curl -fsSL "https://packages.microsoft.com/config/ubuntu/$(. /etc/os-release; echo "$VERSION_ID")/prod.list" \
+            | sudo tee /etc/apt/sources.list.d/mssql-release.list > /dev/null
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+
+      - name: Install ansible-core and the collection
+        run: |
+          pip install "ansible-core>=2.16"
+          ansible-galaxy collection install ansible_collections/mykola_kharchenko/mssql_cdc
+
+      - name: Install integration test deps
+        run: pip install -r ansible_collections/mykola_kharchenko/mssql_cdc/tests/integration/requirements.txt
+
+      - name: Run end-to-end tests
+        working-directory: ansible_collections/mykola_kharchenko/mssql_cdc
+        run: pytest tests/integration -v

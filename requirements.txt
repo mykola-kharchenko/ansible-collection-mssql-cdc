@@ -7,4 +7,5 @@
 # pyodbc also needs the Microsoft ODBC Driver 18 for SQL Server and unixODBC
 # installed at the OS level; see the README.
 
-mssqlcdcmgr>=0.1.0
+# TODO: switch to `mssqlcdcmgr>=0.1.0` once the engine is published to PyPI.
+mssqlcdcmgr @ git+https://github.com/mykola-kharchenko/mssqlcdcmgr.git@main

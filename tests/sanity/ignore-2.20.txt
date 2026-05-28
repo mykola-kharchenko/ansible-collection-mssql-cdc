@@ -1,0 +1,3 @@
+plugins/modules/cdc_db.py validate-modules:missing-gplv3-license
+plugins/modules/cdc_facts.py validate-modules:missing-gplv3-license
+plugins/modules/cdc_table.py validate-modules:missing-gplv3-license

@@ -1,0 +1,8 @@
+# Python deps for `pytest tests/integration` end-to-end tests.
+# Install on top of an ansible-core environment with the collection installed.
+pytest>=8
+testcontainers>=4
+pyodbc>=5
+
+# TODO: switch to `mssqlcdcmgr>=0.1.0` once the engine is published to PyPI.
+mssqlcdcmgr @ git+https://github.com/mykola-kharchenko/mssqlcdcmgr.git@main

@@ -22,11 +22,7 @@ import traceback
 # bodies — modules call :func:`require_engine` before using anything from it.
 try:
     from mssqlcdcmgr import db as _engine_db
-    from mssqlcdcmgr.errors import (
-        DatabaseError,
-        InterpolationError,  # noqa: F401 - re-exported for module use
-        MssqlCdcMgrError,
-    )
+    from mssqlcdcmgr.errors import MssqlCdcMgrError
 
     HAS_MSSQLCDCMGR = True
     IMPORT_ERROR = None
@@ -35,9 +31,9 @@ except ImportError:
     IMPORT_ERROR = traceback.format_exc()
 
     class _MissingEngine(Exception):
-        """Placeholder so ``except`` blocks still type-check when the engine is missing."""
+        """Placeholder so ``except`` blocks still resolve when the engine is missing."""
 
-    DatabaseError = MssqlCdcMgrError = _MissingEngine  # type: ignore[assignment,misc]
+    MssqlCdcMgrError = _MissingEngine  # type: ignore[assignment,misc]
 
 
 # Connection arguments common to every module in this collection. Modules merge

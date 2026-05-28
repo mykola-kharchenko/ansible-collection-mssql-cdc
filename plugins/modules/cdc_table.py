@@ -116,8 +116,10 @@ requirements:
   - "Database-level CDC must already be enabled (use M(mykola_kharchenko.mssql_cdc.cdc_db))"
 attributes:
   check_mode:
+    description: Computes and reports the plan without invoking the C(sp_cdc_*) procedures.
     support: full
   diff_mode:
+    description: Returns a before/after JSON snippet of the source table's capture state.
     support: full
 """
 

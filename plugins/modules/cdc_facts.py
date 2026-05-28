@@ -60,8 +60,10 @@ requirements:
   - "Microsoft ODBC Driver 18 for SQL Server + unixODBC"
 attributes:
   check_mode:
+    description: The module is read-only, so C(check_mode) returns the same facts as a normal run.
     support: full
   diff_mode:
+    description: Read-only modules do not produce diffs.
     support: none
 """
 
