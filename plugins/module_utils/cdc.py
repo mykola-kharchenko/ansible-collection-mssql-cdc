@@ -4,11 +4,12 @@
 # MIT License
 """Shared helpers for the ``mykola_kharchenko.mssql_cdc`` modules.
 
-Wraps :mod:`mssqlcdcmgr.db` so individual modules don't duplicate the
-connection-string boilerplate or the engine-error translation. Modules merge
-:data:`COMMON_ARGUMENT_SPEC` into their own ``argument_spec`` and call
-:func:`connect_from_module` to get a ready-to-use pyodbc connection — failures
-become clean ``module.fail_json`` outputs, never raw tracebacks.
+Wraps the vendored engine under :mod:`...module_utils._engine` so individual
+modules don't duplicate the connection-string boilerplate or the engine-error
+translation. Modules merge :data:`COMMON_ARGUMENT_SPEC` into their own
+``argument_spec`` and call :func:`connect_from_module` to get a ready-to-use
+pyodbc connection — failures become clean ``module.fail_json`` outputs, never
+raw tracebacks.
 """
 
 from __future__ import absolute_import, division, print_function
@@ -17,24 +18,10 @@ __metaclass__ = type
 
 import traceback
 
-# The Python engine is imported lazily so that ``ansible-test sanity`` and
-# unit tests on a controller without mssqlcdcmgr still execute the module
-# bodies — modules call :func:`require_engine` before using anything from it.
-try:
-    from mssqlcdcmgr import db as _engine_db
-    from mssqlcdcmgr.errors import MssqlCdcMgrError
-
-    HAS_MSSQLCDCMGR = True
-    IMPORT_ERROR = None
-except ImportError:
-    HAS_MSSQLCDCMGR = False
-    IMPORT_ERROR = traceback.format_exc()
-
-    class _MissingEngine(Exception):
-        """Placeholder so ``except`` blocks still resolve when the engine is missing."""
-
-    MssqlCdcMgrError = _MissingEngine  # type: ignore[assignment,misc]
-
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine import db
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.errors import (
+    MssqlCdcMgrError,
+)
 
 # Connection arguments common to every module in this collection. Modules merge
 # this dict into their own argument_spec; the names follow the convention used
@@ -51,19 +38,6 @@ COMMON_ARGUMENT_SPEC = dict(
 )
 
 
-def require_engine(module):
-    """Fail the module cleanly if the ``mssqlcdcmgr`` Python package is missing."""
-    if not HAS_MSSQLCDCMGR:
-        module.fail_json(
-            msg=(
-                "the 'mssqlcdcmgr' Python package is required by this module; "
-                "install it with `pip install mssqlcdcmgr` on the host that "
-                "executes the module (the controller for delegate_to: localhost)."
-            ),
-            exception=IMPORT_ERROR,
-        )
-
-
 def connect_from_module(module, *, database=None):
     """Open a pyodbc connection using the module's connection arguments.
 
@@ -76,10 +50,9 @@ def connect_from_module(module, *, database=None):
         A live pyodbc connection. The function does *not* return on failure —
         it calls ``module.fail_json`` which terminates the module.
     """
-    require_engine(module)
     params = module.params
     try:
-        return _engine_db.connect(
+        return db.connect(
             host=params["host"],
             port=params["port"],
             user=params["login_user"],
@@ -110,7 +83,7 @@ def make_diff(before, after):
     """Build an Ansible ``--diff`` payload from two state dicts.
 
     Returns the ``{'before': str, 'after': str}`` shape Ansible's diff callback
-    expects, with the dicts rendered as deterministic YAML so the on-screen
+    expects, with the dicts rendered as deterministic JSON so the on-screen
     diff is readable.
     """
     import json as _json  # local import keeps the module hot path lean

@@ -111,7 +111,7 @@ options:
     type: int
     default: 30
 requirements:
-  - "Python C(mssqlcdcmgr) >= 0.1 on the host that executes the module"
+  - "C(pyodbc) on the host that executes the module"
   - "Microsoft ODBC Driver 18 for SQL Server + unixODBC"
   - "Database-level CDC must already be enabled (use M(mykola_kharchenko.mssql_cdc.cdc_db))"
 attributes:
@@ -178,19 +178,33 @@ reasons:
 
 from ansible.module_utils.basic import AnsibleModule
 
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine import (
+    state as engine_state,
+)
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.apply import (
+    apply_plan,
+)
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.config import (
+    Config,
+    Table,
+    merge_defaults,
+)
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.diff import (
+    compute_diff,
+)
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.state import (
+    ActualState,
+)
 from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils.cdc import (
     COMMON_ARGUMENT_SPEC,
     connect_from_module,
     fail_from_engine,
     make_diff,
-    require_engine,
 )
 
 
 def _build_desired(params):
-    """Build a merged mssqlcdcmgr Config containing only this one source table."""
-    from mssqlcdcmgr.config import Config, Table, merge_defaults
-
+    """Build a merged Config containing only this one source table."""
     table = Table(
         schema_name=params["schema"],
         table_name=params["name"],
@@ -230,8 +244,6 @@ def _scoped_state(actual_state, source_key):
     This lets us reuse ``compute_diff`` without it dropping the other tables in
     the database — they simply aren't part of this module's scope.
     """
-    from mssqlcdcmgr.state import ActualState
-
     return ActualState(
         database=actual_state.database,
         cdc_enabled=actual_state.cdc_enabled,
@@ -241,8 +253,6 @@ def _scoped_state(actual_state, source_key):
 
 def _empty_desired(params):
     """Build a 0-table merged Config (used to compute the drop plan for state=absent)."""
-    from mssqlcdcmgr.config import Config, merge_defaults
-
     return merge_defaults(
         Config(version=1, database=params["database"], host=params["host"], tables={})
     )
@@ -302,11 +312,6 @@ def main():
     )
 
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
-    require_engine(module)
-
-    from mssqlcdcmgr import state as engine_state
-    from mssqlcdcmgr.apply import apply_plan
-    from mssqlcdcmgr.diff import compute_diff
 
     source_key = f"{module.params['schema']}.{module.params['name']}"
     desired_state = module.params["state"]

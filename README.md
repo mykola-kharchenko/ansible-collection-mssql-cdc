@@ -9,9 +9,9 @@ Ansible. Native modules, a role and example playbooks so a single play converges
 CDC across a fleet of databases — with `--check`, `--diff` and idempotency
 exactly as Ansible users expect.
 
-The modules wrap the [`mssqlcdcmgr`](https://github.com/mykola-kharchenko/mssqlcdcmgr)
-Python engine, so the diff/apply/safe-recreate logic is shared with the
-standalone CLI.
+Self-contained: the diff / apply / safe-recreate engine is vendored under
+`plugins/module_utils/_engine/`. The only runtime dependency outside Ansible is
+`pyodbc` (plus the OS-level ODBC Driver 18 for SQL Server).
 
 > **Status:** early development — see the [CHANGELOG](CHANGELOG.md).
 
@@ -24,8 +24,21 @@ pip install -r requirements.txt   # Python deps for the modules
 
 The Python modules need the Microsoft **ODBC Driver 18 for SQL Server** and
 `unixODBC` on whichever host runs them (the Ansible controller for
-`delegate_to: localhost`, otherwise the target). See `requirements.txt` and the
-`mssqlcdcmgr` README for the OS package list.
+`delegate_to: localhost`, otherwise the target):
+
+- **Debian/Ubuntu**
+
+  ```bash
+  curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+    | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc > /dev/null
+  curl -fsSL "https://packages.microsoft.com/config/ubuntu/$(. /etc/os-release; echo "$VERSION_ID")/prod.list" \
+    | sudo tee /etc/apt/sources.list.d/mssql-release.list > /dev/null
+  sudo apt-get update
+  sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+  ```
+
+- **macOS**: `brew install msodbcsql18 unixodbc`
+- **RHEL/Fedora**: install `msodbcsql18` from the Microsoft `packages.microsoft.com` repo.
 
 ## Modules
 
@@ -88,20 +101,14 @@ playbooks/                # enable.yml, drift.yml, apply.yml
 tests/                    # ansible-test sanity + pytest integration
 ```
 
-## Collection vs the `mssqlcdcmgr` CLI
+## Engine
 
-This collection and the [`mssqlcdcmgr`](https://github.com/mykola-kharchenko/mssqlcdcmgr)
-Python CLI share the same engine; pick the surface that fits your workflow:
-
-| Use this collection when…                                | Use the CLI when…                                       |
-|----------------------------------------------------------|---------------------------------------------------------|
-| Your team already runs Ansible (inventory, vault, AAP)   | You want a single self-contained binary                 |
-| You want native `--check` / `--diff` + standard recap    | You want fast (~50 ms) startup for `validate`/`plan`    |
-| You want CDC declared alongside other DB/OS state        | You want a programmatic Python API (`compute_diff`, …)  |
-| Rolling/serial applies, tags, block/rescue matter        | You need the DBML schema export (`mssqlcdcmgr schema`)  |
-
-Both share the same diff semantics, so a config "ported" between them produces
-identical plans.
+The diff / apply / safe-recreate logic lives in
+[`plugins/module_utils/_engine/`](plugins/module_utils/_engine/) (vendored,
+no external PyPI dependency). It is an internal implementation detail of the
+collection — modules call into it through
+[`plugins/module_utils/cdc.py`](plugins/module_utils/cdc.py); users only ever
+touch the public modules and the `cdc` role.
 
 ## Development
 

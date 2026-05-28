@@ -42,6 +42,35 @@ jobs:
         working-directory: ansible_collections/mykola_kharchenko/mssql_cdc
         run: ansible-test sanity --python ${{ matrix.python }} --color -v
 
+  units:
+    name: Units (ansible ${{ matrix.ansible }} / py ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ansible: ["2.16", "2.17", "2.18"]
+        python: ["3.11", "3.12"]
+        exclude:
+          - { ansible: "2.18", python: "3.11" }
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ansible_collections/mykola_kharchenko/mssql_cdc
+
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install ansible-core ${{ matrix.ansible }} and pytest-xdist
+        # pytest-xdist is what ansible-test's `-n auto` relies on.
+        run: pip install "ansible-core~=${{ matrix.ansible }}.0" pytest pytest-xdist
+
+      - name: Run ansible-test units
+        working-directory: ansible_collections/mykola_kharchenko/mssql_cdc
+        run: ansible-test units --python ${{ matrix.python }} --color -v
+
   integration:
     name: Integration (real SQL Server 2022)
     runs-on: ubuntu-latest

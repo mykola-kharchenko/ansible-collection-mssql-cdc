@@ -56,7 +56,7 @@ options:
     type: int
     default: 30
 requirements:
-  - "Python C(mssqlcdcmgr) >= 0.1 on the host that executes the module"
+  - "C(pyodbc) on the host that executes the module"
   - "Microsoft ODBC Driver 18 for SQL Server + unixODBC"
 attributes:
   check_mode:
@@ -136,11 +136,13 @@ ansible_facts:
 
 from ansible.module_utils.basic import AnsibleModule
 
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine import (
+    state as engine_state,
+)
 from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils.cdc import (
     COMMON_ARGUMENT_SPEC,
     connect_from_module,
     fail_from_engine,
-    require_engine,
 )
 
 
@@ -167,9 +169,6 @@ def _serialise(state):
 
 def main():
     module = AnsibleModule(argument_spec=dict(COMMON_ARGUMENT_SPEC), supports_check_mode=True)
-    require_engine(module)
-
-    from mssqlcdcmgr import state as engine_state
 
     conn = connect_from_module(module)
     try:

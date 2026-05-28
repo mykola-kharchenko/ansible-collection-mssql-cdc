@@ -63,7 +63,7 @@ options:
     type: int
     default: 30
 requirements:
-  - "Python C(mssqlcdcmgr) >= 0.1 on the host that executes the module"
+  - "C(pyodbc) on the host that executes the module"
   - "Microsoft ODBC Driver 18 for SQL Server + unixODBC"
 attributes:
   check_mode:
@@ -124,19 +124,16 @@ state_after:
 
 from ansible.module_utils.basic import AnsibleModule
 
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine import db as engine_db
 from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils.cdc import (
     COMMON_ARGUMENT_SPEC,
     connect_from_module,
     fail_from_engine,
     make_diff,
-    require_engine,
 )
 
 
 def _read_cdc_flag(conn, database):
-    # Engine import is local because require_engine() guards the import path.
-    from mssqlcdcmgr import db as engine_db
-
     rows = engine_db.run_query(
         conn,
         "SELECT is_cdc_enabled FROM sys.databases WHERE name = ?;",
@@ -158,10 +155,6 @@ def main():
     argument_spec["state"] = dict(type="str", choices=["enabled", "disabled"], default="enabled")
 
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
-    require_engine(module)
-
-    # Late import: this block only runs after require_engine() validated the dep.
-    from mssqlcdcmgr import db as engine_db  # noqa: F401
 
     database = module.params["database"]
     desired = module.params["state"]
