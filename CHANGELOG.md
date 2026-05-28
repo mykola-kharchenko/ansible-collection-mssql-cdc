@@ -6,6 +6,23 @@ collection adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.2.0]
+
+### Added
+
+- `cdc_facts` now gathers source-table schema (column types, primary keys,
+  identity columns, foreign keys, `MS_Description` comments) for every
+  captured table, exposed under each table's `schema` key. Controlled by a
+  new `gather_schema_details` option (default `true`).
+- `playbooks/generate-docs.yml` + `playbooks/templates/cdc.dbml.j2` produce
+  per-host per-database DBML at `docs/<inventory_hostname>/<database>.dbml`,
+  driven entirely by the enriched facts (no new module required).
+- New `plugins/module_utils/_engine/schema.py` housing the catalog queries
+  (INFORMATION_SCHEMA.COLUMNS, sys.indexes, sys.foreign_key_columns,
+  sys.extended_properties) and a pure `build_schema` helper.
+- Publish workflow now gates on `ansible-test sanity` + `ansible-test units`
+  before building/uploading the Galaxy tarball.
+
 ## [0.1.0]
 
 Initial release.
@@ -35,5 +52,6 @@ Initial release.
   environment and `ANSIBLE_GALAXY_API_KEY` secret (see
   [RELEASING.md](RELEASING.md)).
 
-[Unreleased]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/releases/tag/v0.1.0

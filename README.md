@@ -101,6 +101,24 @@ playbooks/                # enable.yml, drift.yml, apply.yml
 tests/                    # ansible-test sanity + pytest integration
 ```
 
+## Schema documentation (DBML)
+
+`cdc_facts` (with `gather_schema_details: true`, the default) also returns
+column types, primary keys, identity columns, foreign keys and
+`MS_Description` comments for every captured table. The bundled
+`playbooks/generate-docs.yml` + `playbooks/templates/cdc.dbml.j2` use those
+facts to render per-host per-database DBML you can paste into
+[dbdiagram.io](https://dbdiagram.io) or preview with the VSCode DBML
+extension.
+
+```bash
+ansible-playbook -i inventory playbooks/generate-docs.yml
+# writes docs/<inventory_hostname>/<mssql_cdc_database>.dbml per host
+```
+
+No new module — pure facts + Jinja2. Swap the template for markdown / HTML
+/ JSON / mermaid as needed without touching the collection.
+
 ## Engine
 
 The diff / apply / safe-recreate logic lives in
