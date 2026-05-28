@@ -16,10 +16,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # ansible-core controller-side Python: 2.16/2.17 require 3.10+,
-        # 2.18 requires 3.11+. Both 3.11 and 3.12 are valid for every row.
+        # ansible-core controller-side Python:
+        #   2.16, 2.17 -> 3.10 / 3.11 / 3.12
+        #   2.18       -> 3.11 / 3.12 (drops 3.10)
         ansible: ["2.16", "2.17", "2.18"]
-        python: ["3.11", "3.12"]
+        python: ["3.10", "3.11", "3.12"]
+        exclude:
+          - { ansible: "2.18", python: "3.10" }
 
     # ansible-test sanity requires the collection to live at
     # ansible_collections/<namespace>/<name>/ — checkout into that layout.
