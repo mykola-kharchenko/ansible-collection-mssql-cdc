@@ -1,0 +1,25 @@
+---
+galaxy_info:
+  role_name: cdc
+  namespace: mykola_kharchenko
+  author: Mykola Kharchenko
+  description: >-
+    Declarative management of SQL Server Change Data Capture: toggles
+    database-level CDC and converges a list of capture instances.
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: GenericLinux
+      versions: [all]
+    - name: GenericBSD
+      versions: [all]
+    - name: Windows
+      versions: [all]
+  galaxy_tags:
+    - database
+    - mssql
+    - sqlserver
+    - cdc
+    - replication
+
+dependencies: []

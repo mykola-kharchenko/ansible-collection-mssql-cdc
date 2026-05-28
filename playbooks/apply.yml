@@ -1,0 +1,21 @@
+---
+# Reconcile CDC across the [cdc_databases] inventory group.
+#
+#   ansible-playbook -i inventory playbooks/apply.yml             # apply
+#   ansible-playbook -i inventory playbooks/apply.yml --check --diff  # plan + drift
+#
+# Each host's group_vars/host_vars supply mssql_cdc_database, the table list and
+# credentials (vault-encrypted). The `cdc` role wraps the modules so the host's
+# whole CDC state converges in one play.
+
+- name: Reconcile CDC
+  hosts: cdc_databases
+  gather_facts: false
+  collections: [mykola_kharchenko.mssql_cdc]
+  # SSH to the controller / DB host running pyodbc; common pattern: keep the
+  # modules on the controller and target databases by inventory_hostname.
+  # connection: local
+  serial: "{{ mssql_cdc_serial | default('100%') }}"
+
+  roles:
+    - role: mykola_kharchenko.mssql_cdc.cdc

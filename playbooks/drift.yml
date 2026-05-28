@@ -1,0 +1,46 @@
+---
+# Drift detector. Designed for a CI cron: it gathers live CDC state with
+# cdc_facts and fails the play when any required table is missing from capture.
+#
+#   ansible-playbook -i inventory playbooks/drift.yml
+#
+# Pair with `apply.yml --check --diff` for a richer "what would change" view.
+
+- name: Detect CDC drift across the fleet
+  hosts: cdc_databases
+  gather_facts: false
+  collections: [mykola_kharchenko.mssql_cdc]
+  any_errors_fatal: false
+
+  tasks:
+    - name: Gather live CDC state
+      mykola_kharchenko.mssql_cdc.cdc_facts:
+        host: "{{ mssql_cdc_host | default(inventory_hostname) }}"
+        port: "{{ mssql_cdc_port | default(1433) }}"
+        login_user: "{{ mssql_cdc_login_user }}"
+        login_password: "{{ mssql_cdc_login_password }}"
+        database: "{{ mssql_cdc_database }}"
+        encrypt: "{{ mssql_cdc_encrypt | default(true) }}"
+        trust_server_certificate: "{{ mssql_cdc_trust_server_certificate | default(false) }}"
+      register: cdc
+
+    - name: Build the set of required source tables
+      ansible.builtin.set_fact:
+        required_tables: "{{ mssql_cdc_tables | map(attribute='schema') | zip(mssql_cdc_tables | map(attribute='name')) | map('join', '.') | list }}"
+        captured_tables: "{{ ansible_facts.mssql_cdc.tables | map(attribute='source_table') | list }}"
+
+    - name: Identify missing tables
+      ansible.builtin.set_fact:
+        missing_tables: "{{ required_tables | difference(captured_tables) }}"
+
+    - name: Report drift
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }}: cdc_enabled={{ ansible_facts.mssql_cdc.cdc_enabled }},
+          captured={{ captured_tables | length }},
+          missing={{ missing_tables }}
+
+    - name: Fail when any required table is missing from CDC
+      ansible.builtin.fail:
+        msg: "{{ inventory_hostname }} missing CDC for: {{ missing_tables | join(', ') }}"
+      when: missing_tables | length > 0

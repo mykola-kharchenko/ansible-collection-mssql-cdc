@@ -1,0 +1,73 @@
+---
+# Shared connection block so each task does not repeat itself.
+- name: Fail when required role variables are missing
+  ansible.builtin.fail:
+    msg: >-
+      mssql_cdc_login_user, mssql_cdc_login_password and mssql_cdc_database
+      must be set (typically in group_vars + Ansible Vault).
+  when: >-
+    mssql_cdc_login_user == ''
+    or mssql_cdc_login_password == ''
+    or mssql_cdc_database == ''
+  tags: [always]
+
+- name: Manage database-level CDC
+  mykola_kharchenko.mssql_cdc.cdc_db:
+    host: "{{ mssql_cdc_host }}"
+    port: "{{ mssql_cdc_port }}"
+    login_user: "{{ mssql_cdc_login_user }}"
+    login_password: "{{ mssql_cdc_login_password }}"
+    database: "{{ mssql_cdc_database }}"
+    encrypt: "{{ mssql_cdc_encrypt }}"
+    trust_server_certificate: "{{ mssql_cdc_trust_server_certificate }}"
+    connect_timeout: "{{ mssql_cdc_connect_timeout }}"
+    state: "{{ mssql_cdc_state }}"
+  tags: [cdc_db, cdc]
+
+- name: Manage capture instances
+  mykola_kharchenko.mssql_cdc.cdc_table:
+    host: "{{ mssql_cdc_host }}"
+    port: "{{ mssql_cdc_port }}"
+    login_user: "{{ mssql_cdc_login_user }}"
+    login_password: "{{ mssql_cdc_login_password }}"
+    database: "{{ mssql_cdc_database }}"
+    encrypt: "{{ mssql_cdc_encrypt }}"
+    trust_server_certificate: "{{ mssql_cdc_trust_server_certificate }}"
+    connect_timeout: "{{ mssql_cdc_connect_timeout }}"
+    schema: "{{ item.schema }}"
+    name: "{{ item.name }}"
+    capture_instance: "{{ item.capture_instance | default(omit) }}"
+    columns: "{{ item.columns | default(omit) }}"
+    role_name: "{{ item.role_name | default(mssql_cdc_default_role_name) | default(omit, true) }}"
+    supports_net_changes: >-
+      {{ item.supports_net_changes | default(mssql_cdc_default_supports_net_changes) }}
+    index_name: "{{ item.index_name | default(omit) }}"
+    filegroup_name: "{{ item.filegroup_name | default(omit) }}"
+    recreate_strategy: "{{ item.recreate_strategy | default(mssql_cdc_recreate_strategy) }}"
+    state: present
+  loop: "{{ mssql_cdc_tables }}"
+  loop_control:
+    label: "{{ item.schema }}.{{ item.name }}"
+  when:
+    - mssql_cdc_state == 'enabled'
+    - mssql_cdc_tables | length > 0
+  tags: [cdc_table, cdc]
+
+- name: Disable capture instances marked for removal
+  mykola_kharchenko.mssql_cdc.cdc_table:
+    host: "{{ mssql_cdc_host }}"
+    port: "{{ mssql_cdc_port }}"
+    login_user: "{{ mssql_cdc_login_user }}"
+    login_password: "{{ mssql_cdc_login_password }}"
+    database: "{{ mssql_cdc_database }}"
+    encrypt: "{{ mssql_cdc_encrypt }}"
+    trust_server_certificate: "{{ mssql_cdc_trust_server_certificate }}"
+    connect_timeout: "{{ mssql_cdc_connect_timeout }}"
+    schema: "{{ item.schema }}"
+    name: "{{ item.name }}"
+    state: absent
+  loop: "{{ mssql_cdc_remove }}"
+  loop_control:
+    label: "{{ item.schema }}.{{ item.name }}"
+  when: mssql_cdc_remove | length > 0
+  tags: [cdc_table, cdc_remove, cdc]

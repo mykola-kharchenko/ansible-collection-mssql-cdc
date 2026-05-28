@@ -1,0 +1,54 @@
+---
+# Minimal example: enable database-level CDC and capture a handful of tables on
+# one database — useful as a first-touch playbook before wiring up inventory.
+#
+#   ansible-playbook playbooks/enable.yml -e mssql_cdc_login_password=$PW
+
+- name: Enable CDC on a single database (no inventory required)
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  collections: [mykola_kharchenko.mssql_cdc]
+
+  vars:
+    mssql_cdc_host: "{{ host | default('localhost') }}"
+    mssql_cdc_port: "{{ port | default(1433) }}"
+    mssql_cdc_login_user: "{{ login_user | default('sa') }}"
+    mssql_cdc_login_password: "{{ login_password }}"
+    mssql_cdc_database: "{{ database | default('test_cdc') }}"
+    mssql_cdc_trust_server_certificate: true
+
+  tasks:
+    - name: Enable database-level CDC
+      cdc_db:
+        host: "{{ mssql_cdc_host }}"
+        port: "{{ mssql_cdc_port }}"
+        login_user: "{{ mssql_cdc_login_user }}"
+        login_password: "{{ mssql_cdc_login_password }}"
+        database: "{{ mssql_cdc_database }}"
+        trust_server_certificate: "{{ mssql_cdc_trust_server_certificate }}"
+        state: enabled
+
+    - name: Capture dbo.orders (all columns)
+      cdc_table:
+        host: "{{ mssql_cdc_host }}"
+        port: "{{ mssql_cdc_port }}"
+        login_user: "{{ mssql_cdc_login_user }}"
+        login_password: "{{ mssql_cdc_login_password }}"
+        database: "{{ mssql_cdc_database }}"
+        trust_server_certificate: "{{ mssql_cdc_trust_server_certificate }}"
+        schema: dbo
+        name: orders
+
+    - name: Capture dbo.customers (id, email only) with a PII role
+      cdc_table:
+        host: "{{ mssql_cdc_host }}"
+        port: "{{ mssql_cdc_port }}"
+        login_user: "{{ mssql_cdc_login_user }}"
+        login_password: "{{ mssql_cdc_login_password }}"
+        database: "{{ mssql_cdc_database }}"
+        trust_server_certificate: "{{ mssql_cdc_trust_server_certificate }}"
+        schema: dbo
+        name: customers
+        columns: [id, email]
+        role_name: cdc_pii_reader

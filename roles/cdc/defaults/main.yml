@@ -1,0 +1,40 @@
+---
+# Connection (required — pass from inventory or group_vars; the password should
+# come from Ansible Vault).
+mssql_cdc_host: "{{ inventory_hostname }}"
+mssql_cdc_port: 1433
+mssql_cdc_login_user: ""
+mssql_cdc_login_password: ""
+mssql_cdc_database: ""
+mssql_cdc_encrypt: true
+mssql_cdc_trust_server_certificate: false
+mssql_cdc_connect_timeout: 30
+
+# Database-level CDC flag. Set to 'disabled' to tear it back down (no tables
+# will be managed in that case).
+mssql_cdc_state: enabled
+
+# Defaults applied to every entry in mssql_cdc_tables that does not override
+# them. Mirrors the per-database "defaults" block of the mssqlcdcmgr config.
+mssql_cdc_default_role_name: null
+mssql_cdc_default_supports_net_changes: true
+
+# Recreate strategy when a table's settings drift.
+#   safe   — versioned _vN instance + drop old (no consumer gap)
+#   unsafe — disable + enable in place (brief gap)
+mssql_cdc_recreate_strategy: safe
+
+# Desired capture instances. Each entry is a dict:
+#   schema:               required
+#   name:                  required
+#   capture_instance:     optional (defaults to <schema>_<name>)
+#   columns:              optional list — omit for "capture all columns"
+#   role_name:            optional override of mssql_cdc_default_role_name
+#   supports_net_changes: optional override
+#   index_name:           optional
+#   filegroup_name:       optional
+mssql_cdc_tables: []
+
+# Tables to explicitly disable (drop the capture instance for). Same dict shape
+# but only schema + name are read.
+mssql_cdc_remove: []
