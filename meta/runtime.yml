@@ -1,4 +1,5 @@
 ---
-# Minimum ansible-core that supports modern argument_spec features
-# (sub_options, mutually_exclusive, no_log on suboptions, etc.).
-requires_ansible: '>=2.15.0'
+# 2.16 is the oldest still-supported ansible-core release and the lowest version
+# the CI matrix exercises. 2.15 went EOL in November 2024; we don't claim
+# support for what we don't test.
+requires_ansible: '>=2.16.0'

@@ -7,7 +7,7 @@ galaxy_info:
     Declarative management of SQL Server Change Data Capture: toggles
     database-level CDC and converges a list of capture instances.
   license: MIT
-  min_ansible_version: "2.15"
+  min_ansible_version: "2.16"
   platforms:
     - name: GenericLinux
       versions: [all]
