@@ -7,7 +7,8 @@ is the only function modules call, and it applies the per-database ``defaults``
 block to every table that did not set the inheritable fields explicitly.
 """
 
-from __future__ import absolute_import, annotations, division, print_function
+from __future__ import absolute_import, division, print_function
+from __future__ import annotations
 
 __metaclass__ = type
 

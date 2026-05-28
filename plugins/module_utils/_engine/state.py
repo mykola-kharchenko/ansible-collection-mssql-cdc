@@ -6,7 +6,8 @@ unit tests drive with plain row dicts) and a thin :func:`read_state` that
 issues the catalog queries and feeds the rows in.
 """
 
-from __future__ import absolute_import, annotations, division, print_function
+from __future__ import absolute_import, division, print_function
+from __future__ import annotations
 
 __metaclass__ = type
 

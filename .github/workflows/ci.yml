@@ -9,6 +9,12 @@ on:
 permissions:
   contents: read
 
+env:
+  # Opt into Node 24 for JavaScript actions ahead of GitHub's June-2026 forced
+  # flip. Silences the "Node.js 20 actions are deprecated" warning and surfaces
+  # any incompatibility now rather than the day the default changes.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   sanity:
     name: Sanity (ansible ${{ matrix.ansible }} / py ${{ matrix.python }})

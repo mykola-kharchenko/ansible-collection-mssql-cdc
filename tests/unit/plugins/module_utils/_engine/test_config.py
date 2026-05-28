@@ -1,6 +1,7 @@
 """Tests for the typed config dataclasses and merge_defaults."""
 
-from __future__ import absolute_import, annotations, division, print_function
+from __future__ import absolute_import, division, print_function
+from __future__ import annotations
 
 __metaclass__ = type
 

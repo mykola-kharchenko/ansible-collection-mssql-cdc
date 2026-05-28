@@ -7,7 +7,8 @@ silent data loss. Every meaningful CDC setting in SQL Server requires
 disable+enable to change, so any difference becomes a recreate with a reason.
 """
 
-from __future__ import absolute_import, annotations, division, print_function
+from __future__ import absolute_import, division, print_function
+from __future__ import annotations
 
 __metaclass__ = type
 
