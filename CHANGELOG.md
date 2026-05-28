@@ -31,7 +31,7 @@ Initial release.
   3.11/3.12; PR-gated `pytest` integration suite that spins up SQL Server 2022
   via testcontainers and drives the modules through real `ansible-playbook`
   runs.
-- Publishing workflow — Galaxy publish on `v*` tag via the *Ansible Galaxy*
+- Publishing workflow — Galaxy publish on `v*` tag via the `ansible-galaxy`
   environment and `ANSIBLE_GALAXY_API_KEY` secret (see
   [RELEASING.md](RELEASING.md)).
 

@@ -32,15 +32,15 @@ git push origin main v0.X.Y
 The `Publish to Ansible Galaxy` workflow fires on the `v*` tag, builds the
 tarball with `ansible-galaxy collection build`, and uploads it via
 `ansible-galaxy collection publish` using the `ANSIBLE_GALAXY_API_KEY` secret
-stored on the **Ansible Galaxy** environment.
+stored on the `ansible-galaxy` environment.
 
 ## One-time setup
 
 1. **Galaxy API key.** Sign in at <https://galaxy.ansible.com> with the owning
    account, generate a key under *Preferences → API key*.
 2. **GitHub environment.** Repo *Settings → Environments → New environment →
-   `Ansible Galaxy`* and add `ANSIBLE_GALAXY_API_KEY` as a secret.
-3. (Optional) Add required reviewers on the *Ansible Galaxy* environment so a
+   `ansible-galaxy`* and add `ANSIBLE_GALAXY_API_KEY` as a secret.
+3. (Optional) Add required reviewers on the `ansible-galaxy` environment so a
    release needs an approval click before publishing.
 
 ## Rolling back
