@@ -14,8 +14,36 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  test:
+    name: Release gate (sanity + units)
+    runs-on: ubuntu-latest
+    # Re-verify the tagged commit before we publish, even though main-branch CI
+    # already ran on it. Cheap insurance against tagging from a branch or a
+    # rebased commit that never went through the full pipeline. One matrix
+    # cell (current ansible-core + Python) is enough — the push matrix on the
+    # CI workflow is the comprehensive coverage.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ansible_collections/mykola_kharchenko/mssql_cdc
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install "ansible-core>=2.18" pytest pytest-xdist
+
+      - name: ansible-test sanity
+        working-directory: ansible_collections/mykola_kharchenko/mssql_cdc
+        run: ansible-test sanity --python 3.12 --color -v
+
+      - name: ansible-test units
+        working-directory: ansible_collections/mykola_kharchenko/mssql_cdc
+        run: ansible-test units --python 3.12 --color -v
+
   build:
     name: Build collection tarball
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
