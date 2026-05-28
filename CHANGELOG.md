@@ -13,10 +13,9 @@ Initial release.
 ### Added
 
 - Collection scaffold (`mykola_kharchenko.mssql_cdc`) targeting
-  `ansible-core >= 2.16` (matches the CI matrix; 2.15 went EOL in 2024). The
-  diff / apply / safe-recreate engine is vendored under
-  `plugins/module_utils/_engine/`; the only runtime dependency outside Ansible
-  is `pyodbc`.
+  `ansible-core >= 2.16`. The diff / apply / safe-recreate engine is vendored
+  under `plugins/module_utils/_engine/`; the only runtime dependency outside
+  Ansible is `pyodbc`.
 - `cdc_db` module — enable/disable database-level CDC (idempotent,
   `check_mode` + `diff_mode`).
 - `cdc_table` module — declarative capture-instance management with
