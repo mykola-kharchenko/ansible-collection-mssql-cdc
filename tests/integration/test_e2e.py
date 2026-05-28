@@ -223,5 +223,49 @@ def test_cdc_facts_reports_live_state(fresh_db, tmp_path):
 
     facts = json.loads(Path(tmp_path, "facts.json").read_text(encoding="utf-8"))
     assert facts["cdc_enabled"] is True
-    sources = {t["source_table"] for t in facts["tables"]}
-    assert {"dbo.orders", "dbo.customers"} <= sources
+    by_source = {t["source_table"]: t for t in facts["tables"]}
+    assert {"dbo.orders", "dbo.customers"} <= set(by_source)
+
+    # gather_schema_details defaults to true: every captured table carries the
+    # source structure (column types, PK flag, identity flag, FKs).
+    orders = by_source["dbo.orders"]
+    assert "schema" in orders, "schema details missing from cdc_facts output"
+    cols = {c["name"]: c for c in orders["schema"]["columns"]}
+    assert cols["id"]["is_pk"] is True
+    assert cols["id"]["is_identity"] is True
+    assert cols["status"]["type"] == "varchar(50)"
+    assert cols["status"]["nullable"] is True
+
+
+def test_cdc_facts_skips_schema_when_requested(fresh_db, tmp_path):
+    host, port, db = fresh_db
+    apply_play = _play(host, port, db)
+    assert _run_playbook(tmp_path, apply_play).returncode == 0
+
+    facts_play = f"""
+- hosts: localhost
+  gather_facts: false
+  collections: [mykola_kharchenko.mssql_cdc]
+  tasks:
+    - mykola_kharchenko.mssql_cdc.cdc_facts:
+        host: "{host}"
+        port: {port}
+        login_user: sa
+        login_password: "{_PASSWORD}"
+        database: "{db}"
+        encrypt: false
+        trust_server_certificate: true
+        gather_schema_details: false
+
+    - ansible.builtin.copy:
+        content: "{{{{ ansible_facts.mssql_cdc | to_json }}}}"
+        dest: "{tmp_path}/facts-light.json"
+"""
+    result = _run_playbook(tmp_path, facts_play)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    facts = json.loads(Path(tmp_path, "facts-light.json").read_text(encoding="utf-8"))
+    # cdc inventory still present; schema explicitly opted out.
+    assert facts["cdc_enabled"] is True
+    for entry in facts["tables"]:
+        assert "schema" not in entry, "gather_schema_details=false should omit schema"

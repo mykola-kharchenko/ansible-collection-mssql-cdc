@@ -55,6 +55,16 @@ options:
     description: Connection timeout in seconds.
     type: int
     default: 30
+  gather_schema_details:
+    description:
+      - When true (the default), also reads source-table structure (column
+        types, primary keys, identity columns, foreign keys and
+        C(MS_Description) comments) for every captured table and exposes it
+        under each table's C(schema) key.
+      - Set to C(false) to skip those extra catalog queries — useful when you
+        only need the CDC inventory (a few-millisecond saving per database).
+    type: bool
+    default: true
 requirements:
   - "C(pyodbc) on the host that executes the module"
   - "Microsoft ODBC Driver 18 for SQL Server + unixODBC"
@@ -132,10 +142,48 @@ ansible_facts:
             captures_all_columns:
               description: True when the capture set equals the full source-column set.
               type: bool
+            schema:
+              description:
+                - Source-table structure for documentation rendering. Present
+                  only when I(gather_schema_details=true).
+              type: dict
+              contains:
+                note:
+                  description: The table's C(MS_Description), if any.
+                  type: str
+                columns:
+                  description: All source columns with type and constraint info.
+                  type: list
+                  elements: dict
+                  contains:
+                    name:
+                      description: Column name.
+                      type: str
+                    type:
+                      description: DBML-style type (e.g. C(varchar(50)), C(decimal(10,2))).
+                      type: str
+                    nullable:
+                      description: Whether the column allows NULL.
+                      type: bool
+                    is_pk:
+                      description: Whether the column is part of the primary key.
+                      type: bool
+                    is_identity:
+                      description: Whether the column is an IDENTITY column.
+                      type: bool
+                    ref:
+                      description: C(schema.table.column) target for a foreign key, or null.
+                      type: str
+                    note:
+                      description: The column's C(MS_Description), if any.
+                      type: str
 """
 
 from ansible.module_utils.basic import AnsibleModule
 
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine import (
+    schema as engine_schema,
+)
 from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine import (
     state as engine_state,
 )
@@ -146,29 +194,52 @@ from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils.cdc im
 )
 
 
-def _serialise(state):
+def _serialise_schema_table(schema_table):
     return dict(
-        database=state.database,
-        cdc_enabled=state.cdc_enabled,
-        tables=[
+        note=schema_table.note,
+        columns=[
             dict(
-                source_table=instance.source,
-                capture_instance=instance.capture_instance,
-                supports_net_changes=instance.supports_net_changes,
-                role_name=instance.role_name,
-                index_name=instance.index_name,
-                filegroup_name=instance.filegroup_name,
-                columns=list(instance.columns),
-                source_columns=list(instance.source_columns),
-                captures_all_columns=instance.captures_all_columns,
+                name=col.name,
+                type=col.data_type,
+                nullable=col.nullable,
+                is_pk=col.is_pk,
+                is_identity=col.is_identity,
+                ref=col.ref,
+                note=col.note,
             )
-            for instance in sorted(state.instances, key=lambda i: (i.source, i.capture_instance))
+            for col in schema_table.columns
         ],
     )
 
 
+def _serialise(state, schema_tables):
+    tables = []
+    for instance in sorted(state.instances, key=lambda i: (i.source, i.capture_instance)):
+        entry = dict(
+            source_table=instance.source,
+            capture_instance=instance.capture_instance,
+            supports_net_changes=instance.supports_net_changes,
+            role_name=instance.role_name,
+            index_name=instance.index_name,
+            filegroup_name=instance.filegroup_name,
+            columns=list(instance.columns),
+            source_columns=list(instance.source_columns),
+            captures_all_columns=instance.captures_all_columns,
+        )
+        # schema_tables is None when gather_schema_details=false; otherwise it
+        # carries only the source tables that are actually under CDC.
+        if schema_tables is not None:
+            schema_table = schema_tables.get(instance.source)
+            if schema_table is not None:
+                entry["schema"] = _serialise_schema_table(schema_table)
+        tables.append(entry)
+    return dict(database=state.database, cdc_enabled=state.cdc_enabled, tables=tables)
+
+
 def main():
-    module = AnsibleModule(argument_spec=dict(COMMON_ARGUMENT_SPEC), supports_check_mode=True)
+    argument_spec = dict(COMMON_ARGUMENT_SPEC)
+    argument_spec["gather_schema_details"] = dict(type="bool", default=True)
+    module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
 
     conn = connect_from_module(module)
     try:
@@ -176,8 +247,25 @@ def main():
             state = engine_state.read_state(conn, module.params["database"])
         except Exception as exc:
             fail_from_engine(module, exc, context="reading live state")
+
+        schema_tables = None
+        if module.params["gather_schema_details"] and state.cdc_enabled:
+            # Scope the read to source tables that are actually under CDC —
+            # cheaper than pulling the whole catalog when only a handful of
+            # tables are captured.
+            captured_sources = {i.source for i in state.instances}
+            if captured_sources:
+                try:
+                    schema_tables = engine_schema.read_schema(conn, only_tables=captured_sources)
+                except Exception as exc:
+                    fail_from_engine(module, exc, context="reading schema details")
+            else:
+                schema_tables = {}
+
         conn.close()
-        module.exit_json(changed=False, ansible_facts={"mssql_cdc": _serialise(state)})
+        module.exit_json(
+            changed=False, ansible_facts={"mssql_cdc": _serialise(state, schema_tables)}
+        )
     except Exception as exc:
         try:
             conn.close()

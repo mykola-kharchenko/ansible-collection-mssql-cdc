@@ -1,0 +1,48 @@
+---
+# Generate per-host per-database DBML docs of the live CDC state.
+#
+#   ansible-playbook -i inventory playbooks/generate-docs.yml
+#
+# Output:
+#   docs/<inventory_hostname>/<database>.dbml
+#
+# Layout (one file per database on each host) suits inventories where each
+# Ansible host represents one SQL Server that may carry multiple CDC-enabled
+# databases. A loop or repeated invocation across databases is up to you;
+# this playbook handles one database per host per run (the same shape as the
+# rest of the collection's playbooks).
+
+- name: Refresh CDC documentation
+  hosts: cdc_databases
+  gather_facts: false
+  collections: [mykola_kharchenko.mssql_cdc]
+
+  tasks:
+    - name: Gather CDC state with schema details
+      mykola_kharchenko.mssql_cdc.cdc_facts:
+        host: "{{ mssql_cdc_host | default(inventory_hostname) }}"
+        port: "{{ mssql_cdc_port | default(1433) }}"
+        login_user: "{{ mssql_cdc_login_user }}"
+        login_password: "{{ mssql_cdc_login_password }}"
+        database: "{{ mssql_cdc_database }}"
+        encrypt: "{{ mssql_cdc_encrypt | default(true) }}"
+        trust_server_certificate: "{{ mssql_cdc_trust_server_certificate | default(false) }}"
+        # gather_schema_details defaults to true; rich facts come back automatically
+
+    - name: Ensure per-host output directory exists
+      delegate_to: localhost
+      ansible.builtin.file:
+        path: "{{ mssql_cdc_docs_dir | default('docs') }}/{{ inventory_hostname }}"
+        state: directory
+        mode: "0755"
+
+    - name: Render <host>/<database>.dbml
+      delegate_to: localhost
+      ansible.builtin.template:
+        src: cdc.dbml.j2
+        dest: >-
+          {{ mssql_cdc_docs_dir | default('docs') }}/{{ inventory_hostname }}/{{ mssql_cdc_database }}.dbml
+        mode: "0644"
+      vars:
+        cdc: "{{ ansible_facts.mssql_cdc }}"
+        host_label: "{{ mssql_cdc_host | default(inventory_hostname) }}"
