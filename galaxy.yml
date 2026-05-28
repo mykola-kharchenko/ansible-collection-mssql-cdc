@@ -1,0 +1,45 @@
+---
+namespace: mykola_kharchenko
+name: mssql_cdc
+version: 0.1.0
+
+readme: README.md
+
+authors:
+  - Mykola Kharchenko <mykola.kharchenko@outlook.com>
+
+description: >-
+  Declarative management of Microsoft SQL Server Change Data Capture (CDC).
+  Idiomatic Ansible modules and a role on top of the mssqlcdcmgr engine, so a
+  playbook can enable, drift-check and reconcile CDC across a fleet of databases
+  with native check_mode and diff support.
+
+license:
+  - MIT
+
+tags:
+  - database
+  - mssql
+  - sqlserver
+  - cdc
+  - change_data_capture
+  - replication
+  - debezium
+
+dependencies: {}
+
+repository: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc
+documentation: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc
+homepage: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc
+issues: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/issues
+
+# Stripped from the published tarball; keeps the artefact lean and reproducible.
+build_ignore:
+  - '*.tar.gz'
+  - '*.pyc'
+  - '__pycache__'
+  - '.venv'
+  - '.git'
+  - '.github'
+  - '.gitignore'
+  - 'tests/output'

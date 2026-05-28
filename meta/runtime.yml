@@ -1,0 +1,4 @@
+---
+# Minimum ansible-core that supports modern argument_spec features
+# (sub_options, mutually_exclusive, no_log on suboptions, etc.).
+requires_ansible: '>=2.15.0'

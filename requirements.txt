@@ -1,0 +1,10 @@
+# Python runtime requirements for the modules in this collection.
+# Install on the controller (for delegate_to: localhost) or on the target host,
+# depending on where you run the modules from.
+#
+#   pip install -r requirements.txt
+#
+# pyodbc also needs the Microsoft ODBC Driver 18 for SQL Server and unixODBC
+# installed at the OS level; see the README.
+
+mssqlcdcmgr>=0.1.0

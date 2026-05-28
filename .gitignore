@@ -1,0 +1,21 @@
+# Build artefacts from `ansible-galaxy collection build`
+*.tar.gz
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ansible-test output
+tests/output/
+.ansible/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Never commit a real connection password or vault password file
+*.vault_pass
