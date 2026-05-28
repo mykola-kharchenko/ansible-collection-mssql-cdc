@@ -19,3 +19,6 @@ tests/output/
 
 # Never commit a real connection password or vault password file
 *.vault_pass
+
+# Per-project Claude workspace — local state, never committed
+.claude/
