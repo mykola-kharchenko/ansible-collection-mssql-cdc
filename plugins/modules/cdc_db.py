@@ -42,7 +42,7 @@ options:
     description: Database to manage the CDC flag on.
     type: str
     required: true
-    aliases: [db, name]
+    aliases: [db]
   state:
     description:
       - C(enabled) calls C(sys.sp_cdc_enable_db) when CDC is currently off.

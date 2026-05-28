@@ -48,7 +48,7 @@ COMMON_ARGUMENT_SPEC = dict(
     port=dict(type="int", default=1433),
     login_user=dict(type="str", required=True),
     login_password=dict(type="str", required=True, no_log=True),
-    database=dict(type="str", required=True, aliases=["db", "name"]),
+    database=dict(type="str", required=True, aliases=["db"]),
     encrypt=dict(type="bool", default=True),
     trust_server_certificate=dict(type="bool", default=False),
     connect_timeout=dict(type="int", default=30),
