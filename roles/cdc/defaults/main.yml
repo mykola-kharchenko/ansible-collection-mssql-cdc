@@ -18,6 +18,7 @@ mssql_cdc_state: enabled
 # them. Mirrors the per-database "defaults" block of the mssqlcdcmgr config.
 mssql_cdc_default_role_name: null
 mssql_cdc_default_supports_net_changes: true
+mssql_cdc_default_allow_partition_switch: true
 
 # Recreate strategy when a table's settings drift.
 #   safe   — versioned _vN instance + drop old (no consumer gap)
@@ -25,16 +26,24 @@ mssql_cdc_default_supports_net_changes: true
 mssql_cdc_recreate_strategy: safe
 
 # Desired capture instances. Each entry is a dict:
-#   schema:               required
+#   schema:                required
 #   name:                  required
-#   capture_instance:     optional (defaults to <schema>_<name>)
-#   columns:              optional list — omit for "capture all columns"
-#   role_name:            optional override of mssql_cdc_default_role_name
-#   supports_net_changes: optional override
-#   index_name:           optional
-#   filegroup_name:       optional
+#   state:                 optional present|absent (default present); absent
+#                          drops the capture instance, tables not listed at all
+#                          are left untouched
+#   capture_instance:      optional (defaults to <schema>_<name>)
+#   captured_columns:      optional list — omit for "capture all columns". Each
+#                          entry is a name string or {name, state}; merge-based,
+#                          so a column you do not list is left as-is. Mark
+#                          {name: X, state: absent} to stop capturing column X.
+#   role_name:             optional override of mssql_cdc_default_role_name
+#   supports_net_changes:  optional override
+#   index_name:            optional
+#   filegroup_name:        optional
+#   allow_partition_switch: optional override
 mssql_cdc_tables: []
 
-# Tables to explicitly disable (drop the capture instance for). Same dict shape
-# but only schema + name are read.
+# DEPRECATED: prefer a `state: absent` entry in mssql_cdc_tables. Tables to
+# explicitly disable (drop the capture instance for); only schema + name are
+# read. Kept for backward compatibility.
 mssql_cdc_remove: []

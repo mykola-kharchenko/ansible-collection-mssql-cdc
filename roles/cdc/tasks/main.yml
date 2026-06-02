@@ -37,23 +37,29 @@
     schema: "{{ item.schema }}"
     name: "{{ item.name }}"
     capture_instance: "{{ item.capture_instance | default(omit) }}"
+    captured_columns: "{{ item.captured_columns | default(omit) }}"
     columns: "{{ item.columns | default(omit) }}"
     role_name: "{{ item.role_name | default(mssql_cdc_default_role_name) | default(omit, true) }}"
     supports_net_changes: >-
       {{ item.supports_net_changes | default(mssql_cdc_default_supports_net_changes) }}
     index_name: "{{ item.index_name | default(omit) }}"
     filegroup_name: "{{ item.filegroup_name | default(omit) }}"
+    allow_partition_switch: >-
+      {{ item.allow_partition_switch | default(mssql_cdc_default_allow_partition_switch) }}
     recreate_strategy: "{{ item.recreate_strategy | default(mssql_cdc_recreate_strategy) }}"
-    state: present
+    state: "{{ item.state | default('present') }}"
   loop: "{{ mssql_cdc_tables }}"
   loop_control:
-    label: "{{ item.schema }}.{{ item.name }}"
+    label: "{{ item.schema }}.{{ item.name }} ({{ item.state | default('present') }})"
   when:
     - mssql_cdc_state == 'enabled'
     - mssql_cdc_tables | length > 0
   tags: [cdc_table, cdc]
 
-- name: Disable capture instances marked for removal
+# DEPRECATED: prefer a `state: absent` entry inside mssql_cdc_tables. This
+# separate list is kept for backward compatibility and may be removed in a
+# future major version.
+- name: Disable capture instances marked for removal (deprecated mssql_cdc_remove)
   mykola_kharchenko.mssql_cdc.cdc_table:
     host: "{{ mssql_cdc_host }}"
     port: "{{ mssql_cdc_port }}"
