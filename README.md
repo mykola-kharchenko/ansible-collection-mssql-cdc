@@ -88,8 +88,9 @@ capturing just one column without disturbing the rest, mark it `absent`:
           - { name: ssn, state: absent }   # remove ssn; keep every other captured column
 ```
 
-See the [role README](roles/cdc/README.md) for every variable and an
-inventory/group_vars layout.
+Keep `mssql_cdc_login_password` (and any other secrets) in Ansible Vault. See the
+[role README](roles/cdc/README.md) for every variable, a short Vault how-to, and
+the per-server vs per-database inventory layout.
 
 <details>
 <summary>Lower-level: calling the modules directly</summary>

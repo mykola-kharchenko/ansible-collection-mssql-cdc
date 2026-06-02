@@ -1,6 +1,9 @@
 ---
-# Connection (required — pass from inventory or group_vars; the password should
-# come from Ansible Vault).
+# Connection layer — typically set ONCE PER SQL SERVER (a group_vars file for the
+# server group), since every database on a host shares it. login_user and
+# especially login_password are secrets: keep them in Ansible Vault. database is
+# the exception — it is per-database, so set it per host / in a per-database
+# group (see roles/cdc/README.md "Secrets & inventory layout").
 mssql_cdc_host: "{{ inventory_hostname }}"
 mssql_cdc_port: 1433
 mssql_cdc_login_user: ""
@@ -25,7 +28,8 @@ mssql_cdc_default_allow_partition_switch: true
 #   unsafe — disable + enable in place (brief gap)
 mssql_cdc_recreate_strategy: safe
 
-# Desired capture instances. Each entry is a dict:
+# CDC intent — naturally PER DATABASE (set with mssql_cdc_database, in host_vars
+# or a per-database group). Desired capture instances. Each entry is a dict:
 #   schema:                required
 #   name:                  required
 #   state:                 optional present|absent (default present); absent
