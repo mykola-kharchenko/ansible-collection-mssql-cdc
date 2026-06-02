@@ -374,7 +374,7 @@ def _state_snapshot(scoped):
         # Sort to match the resolved (sorted) desired side, so the --diff shows
         # only real add/remove (+/-) and never spurious reorder churn; columns
         # that stay appear as unmarked context lines.
-        "columns": sorted(primary.columns),
+        "captured_columns": sorted(primary.columns),
     }
 
 
@@ -389,7 +389,7 @@ def _desired_snapshot(state, params, plan):
             "capture_instance": table.capture_instance,
             "supports_net_changes": table.supports_net_changes,
             "role_name": table.role_name,
-            "columns": table.columns or "all",
+            "captured_columns": table.columns or "all",
         }
     if plan.recreate:
         table = plan.recreate[0].table
@@ -398,7 +398,7 @@ def _desired_snapshot(state, params, plan):
             "capture_instance": table.capture_instance + " (recreated)",
             "supports_net_changes": table.supports_net_changes,
             "role_name": table.role_name,
-            "columns": table.columns or "all",
+            "captured_columns": table.columns or "all",
         }
     # No changes: after == before.
     return None
