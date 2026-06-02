@@ -85,10 +85,15 @@ def make_diff(before, after):
     Returns the ``{'before': str, 'after': str}`` shape Ansible's diff callback
     expects, with the dicts rendered as deterministic JSON so the on-screen
     diff is readable.
+
+    ``ensure_ascii=False`` keeps non-ASCII identifiers (e.g. Cyrillic schema,
+    table or column names) as readable characters instead of ``\\uXXXX`` escapes.
     """
     import json as _json  # local import keeps the module hot path lean
 
     def _render(payload):
-        return _json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n"
+        return _json.dumps(
+            payload, indent=2, sort_keys=True, default=str, ensure_ascii=False
+        ) + "\n"
 
     return {"before": _render(before), "after": _render(after)}

@@ -6,6 +6,14 @@ collection adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Fixed
+
+- `--diff` now renders non-ASCII identifiers (e.g. Cyrillic schema, table or
+  column names) as readable characters instead of `\uXXXX` escapes
+  (`ensure_ascii=False` in `make_diff`).
+- `cdc_table` `--diff` now labels the captured-column list `captured_columns`
+  (matching the current option name) instead of the deprecated `columns`.
+
 ## [0.3.0]
 
 ### Added
