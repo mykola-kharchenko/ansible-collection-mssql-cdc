@@ -6,6 +6,8 @@ collection adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [0.4.0]
+
 ### Added
 
 - `cdc_table` now returns an `action` field
@@ -134,7 +136,8 @@ Initial release.
   environment and `ANSIBLE_GALAXY_API_KEY` secret (see
   [RELEASING.md](RELEASING.md)).
 
-[Unreleased]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mykola-kharchenko/ansible-collection-mssql-cdc/compare/v0.2.0...v0.3.0
