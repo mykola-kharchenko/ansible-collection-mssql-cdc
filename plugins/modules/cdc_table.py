@@ -181,6 +181,13 @@ changed:
   description: Whether the module mutated the database.
   returned: always
   type: bool
+action:
+  description:
+    - What the module did to the capture instance (in check mode, the would-be action).
+    - Aggregatable across a loop for a per-run summary.
+  returned: always
+  type: str
+  choices: [created, recreated, dropped, unchanged]
 msg:
   description: Human-readable summary of what the module did (or would do).
   returned: always
@@ -429,7 +436,12 @@ def main():
         else:
             plan = compute_diff(_empty_desired(module.params), scoped)
 
-        result = dict(changed=False, msg="already in desired state", database=module.params["database"])
+        result = dict(
+            changed=False,
+            action=_action(plan),
+            msg="already in desired state",
+            database=module.params["database"],
+        )
         if scoped.instances:
             result["capture_instance"] = scoped.instances[-1].capture_instance
         if plan.recreate:
@@ -475,6 +487,17 @@ def main():
         except Exception:  # pragma: no cover - best-effort cleanup
             pass
         fail_from_engine(module, exc)
+
+
+def _action(plan):
+    """Machine-readable outcome for one source table (the would-be action in check mode)."""
+    if plan.create:
+        return "created"
+    if plan.recreate:
+        return "recreated"
+    if plan.drop:
+        return "dropped"
+    return "unchanged"
 
 
 def _summarise(plan, desired_state):
