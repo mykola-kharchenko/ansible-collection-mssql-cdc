@@ -20,22 +20,11 @@ description:
   - Read-only. Always returns C(changed=false).
 author:
   - Mykola Kharchenko (@mykola-kharchenko)
+extends_documentation_fragment:
+  - mykola_kharchenko.mssql_cdc.connection
 options:
-  host:
-    description: SQL Server host.
-    type: str
-    required: true
-    aliases: [login_host, server]
-  port:
-    description: TCP port.
-    type: int
-    default: 1433
   login_user:
     description: SQL Server login that can read C(cdc.change_tables).
-    type: str
-    required: true
-  login_password:
-    description: Password for I(login_user). Use Ansible Vault.
     type: str
     required: true
   database:
@@ -43,18 +32,6 @@ options:
     type: str
     required: true
     aliases: [db]
-  encrypt:
-    description: Enable TLS on the connection.
-    type: bool
-    default: true
-  trust_server_certificate:
-    description: Trust a self-signed server certificate.
-    type: bool
-    default: false
-  connect_timeout:
-    description: Connection timeout in seconds.
-    type: int
-    default: 30
   gather_schema_details:
     description:
       - When true (the default), also reads source-table structure (column

@@ -6,6 +6,15 @@ collection adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Changed
+
+- Docs: the shared SQL Server connection options (`host`, `port`,
+  `login_password`, `encrypt`, `trust_server_certificate`, `connect_timeout`)
+  are now documented once via a `connection` doc fragment and reused across
+  `cdc_db`, `cdc_table` and `cdc_facts`, keeping their descriptions consistent.
+  Per-module options (`login_user`, `database`) stay local. No option or
+  behavior change.
+
 ## [0.3.1]
 
 ### Fixed

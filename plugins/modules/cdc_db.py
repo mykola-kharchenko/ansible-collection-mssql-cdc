@@ -20,22 +20,11 @@ description:
   - Required before any table-level capture can be enabled with M(mykola_kharchenko.mssql_cdc.cdc_table).
 author:
   - Mykola Kharchenko (@mykola-kharchenko)
+extends_documentation_fragment:
+  - mykola_kharchenko.mssql_cdc.connection
 options:
-  host:
-    description: SQL Server host name or address.
-    type: str
-    required: true
-    aliases: [login_host, server]
-  port:
-    description: TCP port the SQL Server listens on.
-    type: int
-    default: 1433
   login_user:
     description: SQL Server login with permission to manage CDC (typically a db_owner).
-    type: str
-    required: true
-  login_password:
-    description: Password for I(login_user). Use Ansible Vault.
     type: str
     required: true
   database:
@@ -50,18 +39,6 @@ options:
     type: str
     choices: [enabled, disabled]
     default: enabled
-  encrypt:
-    description: Enable TLS on the connection.
-    type: bool
-    default: true
-  trust_server_certificate:
-    description: Trust a self-signed or otherwise unverifiable server certificate.
-    type: bool
-    default: false
-  connect_timeout:
-    description: Connection timeout in seconds.
-    type: int
-    default: 30
 requirements:
   - "C(pyodbc) on the host that executes the module"
   - "Microsoft ODBC Driver 18 for SQL Server + unixODBC"

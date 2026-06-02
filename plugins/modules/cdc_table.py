@@ -23,22 +23,11 @@ description:
     to two instances per source table, so consumers do not see a gap.
 author:
   - Mykola Kharchenko (@mykola-kharchenko)
+extends_documentation_fragment:
+  - mykola_kharchenko.mssql_cdc.connection
 options:
-  host:
-    description: SQL Server host.
-    type: str
-    required: true
-    aliases: [login_host, server]
-  port:
-    description: TCP port.
-    type: int
-    default: 1433
   login_user:
     description: SQL Server login with permission to manage CDC (typically C(db_owner)).
-    type: str
-    required: true
-  login_password:
-    description: Password for I(login_user). Use Ansible Vault.
     type: str
     required: true
   database:
@@ -123,18 +112,6 @@ options:
     type: str
     choices: [safe, unsafe]
     default: safe
-  encrypt:
-    description: Enable TLS on the connection.
-    type: bool
-    default: true
-  trust_server_certificate:
-    description: Trust a self-signed server certificate.
-    type: bool
-    default: false
-  connect_timeout:
-    description: Connection timeout in seconds.
-    type: int
-    default: 30
 requirements:
   - "C(pyodbc) on the host that executes the module"
   - "Microsoft ODBC Driver 18 for SQL Server + unixODBC"
