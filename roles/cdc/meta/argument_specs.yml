@@ -1,0 +1,144 @@
+---
+argument_specs:
+  main:
+    short_description: Converge database-level CDC and a list of capture instances
+    description:
+      - Toggles database-level Change Data Capture and reconciles the desired
+        set of capture instances on a SQL Server database.
+      - Connection variables are typically set once per SQL Server in
+        C(group_vars); the secret ones belong in Ansible Vault. The database
+        name and the C(mssql_cdc_tables) list are typically per host / per
+        database.
+    options:
+      mssql_cdc_host:
+        description: SQL Server host name or address.
+        type: str
+        default: "{{ inventory_hostname }}"
+      mssql_cdc_port:
+        description: TCP port the SQL Server listens on.
+        type: int
+        default: 1433
+      mssql_cdc_login_user:
+        description:
+          - SQL Server login with permission to manage CDC (typically a
+            C(db_owner)). Required in practice; set it in C(group_vars).
+        type: str
+      mssql_cdc_login_password:
+        description:
+          - Password for I(mssql_cdc_login_user). Required in practice; store it
+            in Ansible Vault.
+        type: str
+        no_log: true
+      mssql_cdc_database:
+        description:
+          - Database to manage CDC on. Required in practice; usually set per host
+            or in a per-database group.
+        type: str
+      mssql_cdc_encrypt:
+        description: Enable TLS on the connection.
+        type: bool
+        default: true
+      mssql_cdc_trust_server_certificate:
+        description: Trust a self-signed or otherwise unverifiable server certificate.
+        type: bool
+        default: false
+      mssql_cdc_connect_timeout:
+        description: Connection timeout in seconds.
+        type: int
+        default: 30
+      mssql_cdc_state:
+        description:
+          - C(enabled) ensures database-level CDC is on and reconciles
+            I(mssql_cdc_tables). C(disabled) tears database CDC down and manages
+            no tables.
+        type: str
+        choices: [enabled, disabled]
+        default: enabled
+      mssql_cdc_default_role_name:
+        description: Default gating role applied to capture instances that do not override it.
+        type: str
+      mssql_cdc_default_supports_net_changes:
+        description: Default C(supports_net_changes) for capture instances that do not override it.
+        type: bool
+        default: true
+      mssql_cdc_default_allow_partition_switch:
+        description: Default C(allow_partition_switch) for capture instances that do not override it.
+        type: bool
+        default: true
+      mssql_cdc_recreate_strategy:
+        description:
+          - Default recreate strategy when a capture instance's settings drift.
+            C(safe) creates a versioned C(_vN) instance then drops the old one;
+            C(unsafe) disables and re-enables in place (brief consumer gap).
+        type: str
+        choices: [safe, unsafe]
+        default: safe
+      mssql_cdc_tables:
+        description:
+          - Desired capture instances. Each entry is a source table plus its
+            optional CDC settings. Tables not listed are left untouched.
+        type: list
+        elements: dict
+        default: []
+        options:
+          schema:
+            description: Source-table schema (for example C(dbo)).
+            type: str
+            required: true
+          name:
+            description: Source-table name.
+            type: str
+            required: true
+          state:
+            description: C(present) ensures the capture instance; C(absent) drops it.
+            type: str
+            choices: [present, absent]
+            default: present
+          capture_instance:
+            description: Capture-instance name. Defaults to C(<schema>_<name>).
+            type: str
+          captured_columns:
+            description:
+              - Per-column desired state, applied as a merge. Omit to capture all
+                columns. Each entry is a column name or a C({name, state}) mapping.
+            type: list
+            elements: raw
+          columns:
+            description: Deprecated — use I(captured_columns).
+            type: list
+            elements: str
+          role_name:
+            description: Gating role for the change table (overrides I(mssql_cdc_default_role_name)).
+            type: str
+          supports_net_changes:
+            description: Whether the capture instance supports net changes (overrides the default).
+            type: bool
+          index_name:
+            description: Unique index used to support net changes. Leave unset to accept CDC's choice.
+            type: str
+          filegroup_name:
+            description: Filegroup the change table lives in. Leave unset for CDC's default.
+            type: str
+          allow_partition_switch:
+            description: Whether partition switch is allowed on the source table (overrides the default).
+            type: bool
+          recreate_strategy:
+            description: Per-table override of I(mssql_cdc_recreate_strategy).
+            type: str
+            choices: [safe, unsafe]
+      mssql_cdc_remove:
+        description:
+          - Deprecated — prefer an C(absent) state on an I(mssql_cdc_tables)
+            entry. Capture instances to drop; only C(schema) and C(name) are read.
+        type: list
+        elements: dict
+        default: []
+        options:
+          schema:
+            description: Source-table schema.
+            type: str
+            required: true
+          name:
+            description: Source-table name.
+            type: str
+            required: true

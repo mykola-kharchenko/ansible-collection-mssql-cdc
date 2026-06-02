@@ -6,6 +6,27 @@ collection adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+- `cdc_table` now returns an `action` field
+  (`created`/`recreated`/`dropped`/`unchanged`) — a machine-readable per-table
+  outcome (in check mode, the would-be action).
+- The `cdc` role prints a per-run summary (evaluated / added / recreated /
+  dropped / unchanged) from the registered `cdc_table` results, and records
+  `mssql_cdc_added`/`recreated`/`dropped` via `set_stats` so the counts also
+  appear in the play recap. The recap's own `changed=` is task-level, so this
+  surfaces the real per-table breakdown.
+- `roles/cdc/meta/argument_specs.yml` — the role's variables now render as an
+  Options table on Ansible Galaxy and are validated at run time.
+
+### Changed
+
+- Docs/examples now keep secrets in Ansible Vault throughout, and document a
+  per-server vs per-database variable-scoping convention. `playbooks/enable.yml`
+  no longer suggests passing the password inline with `-e ...=$PW` (use a vaulted
+  `-e @secrets.yml --ask-vault-pass`), and its example uses `captured_columns`
+  instead of the deprecated `columns`.
+
 ## [0.3.2]
 
 ### Changed

@@ -51,6 +51,7 @@
   loop: "{{ mssql_cdc_tables }}"
   loop_control:
     label: "{{ item.schema }}.{{ item.name }} ({{ item.state | default('present') }})"
+  register: mssql_cdc_table_results
   when:
     - mssql_cdc_state == 'enabled'
     - mssql_cdc_tables | length > 0
@@ -75,5 +76,49 @@
   loop: "{{ mssql_cdc_remove }}"
   loop_control:
     label: "{{ item.schema }}.{{ item.name }}"
+  register: mssql_cdc_remove_results
   when: mssql_cdc_remove | length > 0
   tags: [cdc_table, cdc_remove, cdc]
+
+# Aggregate the per-table cdc_table results into a single run summary. The play
+# recap's `changed=` is task-level (one looped task = one change however many
+# tables moved), so this surfaces the real per-table breakdown. `action` comes
+# from the cdc_table return (created/recreated/dropped/unchanged); skipped loop
+# items (item-level `when`) are dropped before counting.
+- name: Summarize CDC capture-instance changes
+  vars:
+    _cdc_results: >-
+      {{ (mssql_cdc_table_results.results | default([]))
+         + (mssql_cdc_remove_results.results | default([])) }}
+    _cdc_affected: "{{ _cdc_results | rejectattr('skipped', 'defined') | list }}"
+  ansible.builtin.set_fact:
+    mssql_cdc_summary:
+      evaluated: "{{ _cdc_affected | length }}"
+      added: "{{ _cdc_affected | selectattr('action', 'eq', 'created') | list | length }}"
+      recreated: "{{ _cdc_affected | selectattr('action', 'eq', 'recreated') | list | length }}"
+      dropped: "{{ _cdc_affected | selectattr('action', 'eq', 'dropped') | list | length }}"
+      unchanged: "{{ _cdc_affected | selectattr('action', 'eq', 'unchanged') | list | length }}"
+  tags: [cdc_table, cdc]
+
+- name: Report CDC capture-instance summary
+  ansible.builtin.debug:
+    msg: >-
+      CDC capture instances — {{ mssql_cdc_summary.evaluated }} evaluated:
+      {{ mssql_cdc_summary.added }} added,
+      {{ mssql_cdc_summary.recreated }} recreated,
+      {{ mssql_cdc_summary.dropped }} dropped,
+      {{ mssql_cdc_summary.unchanged }} unchanged
+  when: mssql_cdc_summary is defined
+  tags: [cdc_table, cdc]
+
+# Surface the counts in the play recap too (default callback shows custom stats).
+- name: Record CDC change stats
+  ansible.builtin.set_stats:
+    data:
+      mssql_cdc_added: "{{ mssql_cdc_summary.added | int }}"
+      mssql_cdc_recreated: "{{ mssql_cdc_summary.recreated | int }}"
+      mssql_cdc_dropped: "{{ mssql_cdc_summary.dropped | int }}"
+    per_host: true
+    aggregate: false
+  when: mssql_cdc_summary is defined
+  tags: [cdc_table, cdc]

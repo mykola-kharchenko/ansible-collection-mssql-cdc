@@ -82,11 +82,30 @@ the capture instance (CDC can't edit one in place).
     - mykola_kharchenko.mssql_cdc.cdc
 ```
 
-## Inventory & group_vars layout
+## Secrets & inventory layout
+
+All connection inputs — `host`, `port`, `login_user`, and above all
+`login_password` — are sensitive; keep the password (at least) in Ansible Vault
+and reference it as a normal variable:
+
+```bash
+ansible-vault create group_vars/sqlservers_test/vault.yml
+#   vault_cdc_admin_pw: "S3cr3t"
+ansible-playbook reconcile.yml --ask-vault-pass      # or --vault-password-file
+```
+
+Rule of thumb for *where* each variable belongs:
+
+- **Per SQL Server** (a server `group_vars` file, vaulted): `mssql_cdc_login_user`,
+  `mssql_cdc_login_password`, `mssql_cdc_host`/`mssql_cdc_port`,
+  `mssql_cdc_encrypt`, `mssql_cdc_trust_server_certificate` — every database on
+  the host shares them.
+- **Per database** (`host_vars` or a per-database group): `mssql_cdc_database`,
+  `mssql_cdc_tables`, and any retention/behavior overrides.
 
 Variable sourcing is plain Ansible — the role only consumes the values already
-resolved for each host, so spread them across whatever groups make sense. A
-common split keeps the connection layer with the SQL Server group and the CDC
+resolved for each host, so spread them across whatever groups make sense. The
+split below keeps the connection layer with the SQL Server group and the CDC
 intent with a per-database group:
 
 ```text

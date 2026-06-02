@@ -1,8 +1,14 @@
 ---
-# Minimal example: enable database-level CDC and capture a handful of tables on
-# one database — useful as a first-touch playbook before wiring up inventory.
+# Minimal example: enable database-level CDC and capture a couple of tables on
+# one database — a first-touch playbook before wiring up inventory.
 #
-#   ansible-playbook playbooks/enable.yml -e mssql_cdc_login_password=$PW
+# Keep the password out of your shell history: put it in a vaulted file and pass
+# it at run time (do NOT inline it with -e mssql_cdc_login_password=...):
+#
+#   ansible-vault create secrets.yml     # add: mssql_cdc_login_password: "S3cr3t"
+#   ansible-playbook playbooks/enable.yml -e @secrets.yml --ask-vault-pass
+#
+# Override host / port / login_user / database the same way (-e or a vars file).
 
 - name: Enable CDC on a single database (no inventory required)
   hosts: localhost
@@ -11,12 +17,13 @@
   collections: [mykola_kharchenko.mssql_cdc]
 
   vars:
-    mssql_cdc_host: "{{ host | default('localhost') }}"
-    mssql_cdc_port: "{{ port | default(1433) }}"
-    mssql_cdc_login_user: "{{ login_user | default('sa') }}"
-    mssql_cdc_login_password: "{{ login_password }}"
-    mssql_cdc_database: "{{ database | default('test_cdc') }}"
+    mssql_cdc_host: localhost
+    mssql_cdc_port: 1433
+    mssql_cdc_login_user: sa
+    mssql_cdc_database: test_cdc
     mssql_cdc_trust_server_certificate: true
+    # mssql_cdc_login_password comes from a vaulted -e @secrets.yml (see header);
+    # extra-vars also override any of the connection vars above.
 
   tasks:
     - name: Enable database-level CDC
@@ -50,5 +57,5 @@
         trust_server_certificate: "{{ mssql_cdc_trust_server_certificate }}"
         schema: dbo
         name: customers
-        columns: [id, email]
+        captured_columns: [id, email]
         role_name: cdc_pii_reader
