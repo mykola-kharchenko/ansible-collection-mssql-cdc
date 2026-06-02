@@ -21,9 +21,13 @@ collection adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   (default `present`) and `allow_partition_switch`; new
   `mssql_cdc_default_allow_partition_switch` default. Tables not listed are left
   untouched.
-- `cdc_table` now runs a light preflight: it fails with a readable message when
-  the source table does not exist or a named `captured_columns` column is not on
-  it, instead of surfacing a raw ODBC error from apply.
+- `cdc_table` now runs a preflight before enabling or recreating a capture
+  instance and fails with a readable message — in check mode too — instead of
+  surfacing a terse `sp_cdc_enable_table` error. It checks that the source table
+  exists and is a base table, is not memory-optimized, that named
+  `captured_columns` exist, and that `supports_net_changes` has a primary key or
+  an explicit unique `index_name` (and that a given `index_name` exists and is
+  unique).
 
 ### Changed
 

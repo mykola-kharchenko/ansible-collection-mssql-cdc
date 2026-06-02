@@ -139,6 +139,13 @@ requirements:
   - "C(pyodbc) on the host that executes the module"
   - "Microsoft ODBC Driver 18 for SQL Server + unixODBC"
   - "Database-level CDC must already be enabled (use M(mykola_kharchenko.mssql_cdc.cdc_db))"
+notes:
+  - When the plan would enable or recreate a capture instance, the module first
+    validates the source table against CDC's requirements (it exists and is a
+    base table, is not memory-optimized, named I(captured_columns) exist, and —
+    when I(supports_net_changes) is true — it has a primary key or an explicit
+    unique I(index_name)). A violation fails with a readable message, in check
+    mode too, instead of surfacing a terse C(sp_cdc_enable_table) error.
 attributes:
   check_mode:
     description: Computes and reports the plan without invoking the C(sp_cdc_*) procedures.
@@ -217,6 +224,9 @@ from ansible.module_utils.basic import AnsibleModule
 
 from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine import (
     state as engine_state,
+)
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine import (
+    validate as engine_validate,
 )
 from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.apply import (
     apply_plan,
@@ -341,32 +351,14 @@ def _resolve_directives(module, desired_state):
         module.fail_json(msg=str(exc))
 
 
-def _preflight(module, conn, source_key, directives):
-    """Check the source table exists and any named columns are real.
-
-    Returns the ``{schema.table: [col, ...]}`` map for the diff to resolve the
-    new-table merge baseline. Fails the module with a readable message rather
-    than letting a raw ODBC error surface later from apply.
-    """
-    schema, name = module.params["schema"], module.params["name"]
+def _read_facts(module, conn):
+    """Read the source table's catalog facts (columns, indexes, memory flag)."""
     try:
-        source_map = engine_state.read_source_columns(conn, [(schema, name)])
-    except Exception as exc:
-        fail_from_engine(module, exc, context="reading source columns")
-    columns = source_map.get(source_key, [])
-    if not columns:
-        module.fail_json(
-            msg=f"source table {source_key} not found (or is not a base table) in "
-            f"database {module.params['database']}"
+        return engine_validate.read_table_facts(
+            conn, module.params["schema"], module.params["name"]
         )
-    if directives:
-        unknown = sorted({d.name for d in directives} - set(columns))
-        if unknown:
-            module.fail_json(
-                msg=f"captured_columns reference columns not on {source_key}: "
-                f"{', '.join(unknown)}"
-            )
-    return source_map
+    except Exception as exc:
+        fail_from_engine(module, exc, context="reading source-table facts")
 
 
 def _state_snapshot(scoped):
@@ -442,8 +434,18 @@ def main():
 
         scoped = _scoped_state(actual_full, source_key)
         if desired_state == "present":
-            source_map = _preflight(module, conn, source_key, directives)
-            plan = compute_diff(_build_desired(module.params, directives), scoped, source_map)
+            desired = _build_desired(module.params, directives)
+            facts = _read_facts(module, conn)
+            plan = compute_diff(desired, scoped, {source_key: facts.columns})
+            # Validate only when we are about to (re)enable: an unchanged or
+            # dropped table needs no checks, and a table already captured by
+            # definition satisfied them.
+            if plan.create or plan.recreate:
+                errors = engine_validate.validate_table(desired.tables[source_key], facts)
+                if errors:
+                    module.fail_json(
+                        msg="cannot enable CDC on " + source_key + ": " + "; ".join(errors)
+                    )
         else:
             plan = compute_diff(_empty_desired(module.params), scoped)
 
