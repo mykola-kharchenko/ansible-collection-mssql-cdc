@@ -46,14 +46,14 @@ def _state(*instances, cdc_enabled=True):
 
 
 def test_create_when_table_not_captured():
-    plan = compute_diff(_config(_table("dbo.orders", columns=["id"])), _state())
+    plan = compute_diff(_config(_table("dbo.orders", resolved_columns=["id"])), _state())
     assert [a.source for a in plan.create] == ["dbo.orders"]
     assert not plan.recreate and not plan.drop and not plan.unchanged
 
 
 def test_enable_db_when_not_enabled_and_tables_desired():
     plan = compute_diff(
-        _config(_table("dbo.orders", columns=["id"])), _state(cdc_enabled=False)
+        _config(_table("dbo.orders", resolved_columns=["id"])), _state(cdc_enabled=False)
     )
     assert plan.enable_db is True
     assert plan.has_changes is True
@@ -65,7 +65,7 @@ def test_drop_when_captured_but_not_desired():
 
 
 def test_unchanged_when_settings_match():
-    desired = _config(_table("dbo.orders", columns=["id", "status"], role_name="r"))
+    desired = _config(_table("dbo.orders", resolved_columns=["id", "status"], role_name="r"))
     actual = _state(
         _instance(
             "dbo.orders",
@@ -80,7 +80,7 @@ def test_unchanged_when_settings_match():
 
 
 def test_recreate_on_column_change_has_reason():
-    desired = _config(_table("dbo.orders", columns=["id", "status", "updated_by"]))
+    desired = _config(_table("dbo.orders", resolved_columns=["id", "status", "updated_by"]))
     actual = _state(_instance("dbo.orders", columns=["id", "status"]))
     plan = compute_diff(desired, actual)
     assert len(plan.recreate) == 1
@@ -90,7 +90,7 @@ def test_recreate_on_column_change_has_reason():
 
 
 def test_recreate_on_role_change():
-    desired = _config(_table("dbo.orders", columns=["id"], role_name="new"))
+    desired = _config(_table("dbo.orders", resolved_columns=["id"], role_name="new"))
     actual = _state(_instance("dbo.orders", columns=["id"], role_name="old"))
     plan = compute_diff(desired, actual)
     assert any("role_name changed" in r for r in plan.recreate[0].reasons)
@@ -99,7 +99,7 @@ def test_recreate_on_role_change():
 def test_unspecified_index_name_does_not_drift():
     # CDC auto-populates index_name with the PK index even when not requested;
     # a desired None must accept that and not trigger a perpetual recreate.
-    desired = _config(_table("dbo.orders", columns=["id"]))
+    desired = _config(_table("dbo.orders", resolved_columns=["id"]))
     actual = _state(
         _instance("dbo.orders", columns=["id"], index_name="PK__orders__ABC123")
     )
@@ -107,7 +107,7 @@ def test_unspecified_index_name_does_not_drift():
 
 
 def test_explicit_index_name_mismatch_recreates():
-    desired = _config(_table("dbo.orders", columns=["id"], index_name="ix_custom"))
+    desired = _config(_table("dbo.orders", resolved_columns=["id"], index_name="ix_custom"))
     actual = _state(_instance("dbo.orders", columns=["id"], index_name="PK__orders"))
     plan = compute_diff(desired, actual)
     assert any("index_name changed" in r for r in plan.recreate[0].reasons)
@@ -116,7 +116,7 @@ def test_explicit_index_name_mismatch_recreates():
 def test_versioned_instance_is_unchanged_when_settings_match():
     # After a safe recreate the live instance is dbo_orders_v2; the config still
     # names the base dbo_orders. It must read as unchanged, not a perpetual rename.
-    desired = _config(_table("dbo.orders", capture_instance="dbo_orders", columns=["id"]))
+    desired = _config(_table("dbo.orders", capture_instance="dbo_orders", resolved_columns=["id"]))
     actual = _state(
         _instance("dbo.orders", capture_instance="dbo_orders_v2", columns=["id"])
     )
@@ -125,7 +125,7 @@ def test_versioned_instance_is_unchanged_when_settings_match():
 
 
 def test_columns_all_matches_full_source_set():
-    desired = _config(_table("dbo.orders", columns=None))
+    desired = _config(_table("dbo.orders", resolved_columns=None))
     actual = _state(
         _instance("dbo.orders", columns=["id", "name"], source_columns=["id", "name"])
     )
@@ -143,7 +143,7 @@ def test_merge_present_adds_column_keeping_others():
     plan = compute_diff(desired, actual)
     assert len(plan.recreate) == 1
     assert any("added email" in r for r in plan.recreate[0].reasons)
-    assert set(plan.recreate[0].table.columns) == {"id", "name", "email"}
+    assert set(plan.recreate[0].table.resolved_columns) == {"id", "name", "email"}
 
 
 def test_merge_absent_removes_only_named_column():
@@ -151,7 +151,7 @@ def test_merge_absent_removes_only_named_column():
     actual = _state(_instance("dbo.orders", columns=["id", "name", "email"]))
     plan = compute_diff(desired, actual)
     assert any("removed email" in r for r in plan.recreate[0].reasons)
-    assert set(plan.recreate[0].table.columns) == {"id", "name"}
+    assert set(plan.recreate[0].table.resolved_columns) == {"id", "name"}
 
 
 def test_merge_unmentioned_column_is_left_alone():
@@ -170,7 +170,7 @@ def test_new_table_present_list_defines_capture_set():
         _table("dbo.orders", captured_columns=_cc(("id", "present"), ("name", "present")))
     )
     plan = compute_diff(desired, _state())
-    assert plan.create[0].table.columns == ["id", "name"]
+    assert plan.create[0].table.resolved_columns == ["id", "name"]
 
 
 def test_new_table_absent_only_uses_all_source_columns_minus_absent():
@@ -178,7 +178,7 @@ def test_new_table_absent_only_uses_all_source_columns_minus_absent():
     plan = compute_diff(
         desired, _state(), source_columns={"dbo.orders": ["id", "name", "secret"]}
     )
-    assert plan.create[0].table.columns == ["id", "name"]
+    assert plan.create[0].table.resolved_columns == ["id", "name"]
 
 
 def test_index_name_ignored_when_net_changes_off():
@@ -187,7 +187,7 @@ def test_index_name_ignored_when_net_changes_off():
     desired = _config(
         _table(
             "dbo.orders",
-            columns=["id"],
+            resolved_columns=["id"],
             supports_net_changes=False,
             index_name="ix_custom",
         )
@@ -205,9 +205,9 @@ def test_index_name_ignored_when_net_changes_off():
 
 def test_mixed_plan_counts():
     desired = _config(
-        _table("dbo.add_me", columns=["id"]),
-        _table("dbo.change_me", columns=["id", "new"]),
-        _table("dbo.keep_me", columns=["id"]),
+        _table("dbo.add_me", resolved_columns=["id"]),
+        _table("dbo.change_me", resolved_columns=["id", "new"]),
+        _table("dbo.keep_me", resolved_columns=["id"]),
     )
     actual = _state(
         _instance("dbo.change_me", columns=["id"]),

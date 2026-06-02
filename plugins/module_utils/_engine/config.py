@@ -111,11 +111,11 @@ class Table:
       :class:`ColumnDirective` (or ``None`` for "capture all"). The diff engine
       merges these against the live captured set (present-listed kept, absent
       removed, unmentioned left alone) to compute the concrete set.
-    - ``columns`` is the *resolved* explicit list (or ``None`` = all) that apply
-      passes to ``sp_cdc_enable_table``. The diff stamps it onto each action's
-      table, so apply never sees directives.
+    - ``resolved_columns`` is the *resolved* explicit list (or ``None`` = all)
+      that apply passes to ``sp_cdc_enable_table``. The diff stamps it onto each
+      action's table, so apply never sees directives.
 
-    An empty resolved ``columns`` would mean "capture nothing", which CDC does
+    An empty ``resolved_columns`` would mean "capture nothing", which CDC does
     not allow. ``_explicit`` records which fields the caller actually set, so
     :func:`merge_defaults` knows what to inherit from the per-database
     :class:`Defaults` block.
@@ -124,7 +124,7 @@ class Table:
     schema_name: str
     table_name: str
     capture_instance: str | None = None
-    columns: list[str] | None = None
+    resolved_columns: list[str] | None = None
     captured_columns: list[ColumnDirective] | None = None
     role_name: str | None = None
     supports_net_changes: bool | None = None

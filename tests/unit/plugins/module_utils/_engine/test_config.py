@@ -38,7 +38,7 @@ def test_merge_defaults_fills_inherited_fields():
             "dbo.orders": _table(
                 "dbo.orders",
                 capture_instance="dbo_orders",
-                columns=["id", "status"],
+                resolved_columns=["id", "status"],
             ),
             "dbo.customers": _table("dbo.customers", role_name="cdc_pii"),
         },
@@ -55,7 +55,7 @@ def test_merge_defaults_fills_inherited_fields():
     # missing capture_instance defaults to <schema>_<table>
     assert customers.capture_instance == "dbo_customers"
     # columns omitted -> capture all
-    assert customers.columns is None
+    assert customers.resolved_columns is None
 
 
 def test_normalize_none_passes_through():
