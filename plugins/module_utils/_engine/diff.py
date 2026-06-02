@@ -129,8 +129,8 @@ def compute_diff(
     Returns:
         A :class:`Plan` partitioning every table into create / recreate / drop /
         unchanged, plus whether database-level CDC must be enabled first. Every
-        action's :class:`Table` carries a *resolved* ``columns`` list (or
-        ``None`` for "capture all") — directives never reach apply.
+        action's :class:`Table` carries a *resolved* ``resolved_columns`` list
+        (or ``None`` for "capture all") — directives never reach apply.
     """
     plan = Plan(database=desired.database)
 
@@ -145,12 +145,12 @@ def compute_diff(
         instances = by_source.get(key, [])
         if not instances:
             resolved = _resolve_desired_columns(table, None, source_columns.get(key))
-            plan.create.append(CreateAction(table=_with_columns(table, resolved)))
+            plan.create.append(CreateAction(table=_with_resolved_columns(table, resolved)))
             continue
 
         instance = _instance_to_compare(table, instances)
         resolved = _resolve_desired_columns(table, instance, source_columns.get(key))
-        resolved_table = _with_columns(table, resolved)
+        resolved_table = _with_resolved_columns(table, resolved)
         reasons = _diff_settings(resolved_table, instance)
         if reasons:
             plan.recreate.append(
@@ -194,7 +194,7 @@ def _resolve_desired_columns(
     """
     directives = table.captured_columns
     if directives is None:
-        return set(table.columns) if table.columns is not None else None
+        return set(table.resolved_columns) if table.resolved_columns is not None else None
 
     present = {d.name for d in directives if d.state == "present"}
     absent = {d.name for d in directives if d.state == "absent"}
@@ -209,13 +209,13 @@ def _resolve_desired_columns(
     return (baseline | present) - absent
 
 
-def _with_columns(table: Table, resolved: set[str] | None) -> Table:
-    """Return ``table`` with its resolved capture list stamped onto ``columns``.
+def _with_resolved_columns(table: Table, resolved: set[str] | None) -> Table:
+    """Return ``table`` with its resolved capture list stamped onto ``resolved_columns``.
 
-    Apply only ever reads ``columns``; sorting keeps output deterministic (CDC
-    captures in source order regardless, so the list order is cosmetic).
+    Apply only ever reads ``resolved_columns``; sorting keeps output deterministic
+    (CDC captures in source order regardless, so the list order is cosmetic).
     """
-    return replace(table, columns=None if resolved is None else sorted(resolved))
+    return replace(table, resolved_columns=None if resolved is None else sorted(resolved))
 
 
 def _instance_to_compare(table: Table, instances: list[CaptureInstance]) -> CaptureInstance:
@@ -274,16 +274,16 @@ def _diff_settings(table: Table, instance: CaptureInstance) -> list[str]:
 def _diff_columns(table: Table, instance: CaptureInstance) -> str | None:
     """Reason string if the captured column set differs, else None.
 
-    A desired ``columns`` of ``None`` means "capture all columns", compared
-    against the source table's full column set. If that set is unknown (it was
-    not read), the comparison is skipped rather than risk a false recreate.
+    A desired ``resolved_columns`` of ``None`` means "capture all columns",
+    compared against the source table's full column set. If that set is unknown
+    (it was not read), the comparison is skipped rather than risk a false recreate.
     """
-    if table.columns is None:
+    if table.resolved_columns is None:
         if not instance.source_columns:
             return None
         desired_set = set(instance.source_columns)
     else:
-        desired_set = set(table.columns)
+        desired_set = set(table.resolved_columns)
 
     actual_set = set(instance.columns)
     if desired_set == actual_set:

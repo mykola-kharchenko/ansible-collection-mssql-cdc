@@ -120,7 +120,7 @@ def _procs(fake):
 
 def test_create_enables_table(fake_db):
     plan = Plan(
-        database="db", create=[CreateAction(table=_table("dbo.orders", columns=["id"]))]
+        database="db", create=[CreateAction(table=_table("dbo.orders", resolved_columns=["id"]))]
     )
     report = apply_plan(_FakeConn(), plan)
     assert report.ok and report.created == 1
@@ -132,7 +132,7 @@ def test_create_forwards_allow_partition_switch(fake_db):
     plan = Plan(
         database="db",
         create=[
-            CreateAction(table=_table("dbo.orders", columns=["id"], allow_partition_switch=False))
+            CreateAction(table=_table("dbo.orders", resolved_columns=["id"], allow_partition_switch=False))
         ],
     )
     report = apply_plan(_FakeConn(), plan)
@@ -142,7 +142,7 @@ def test_create_forwards_allow_partition_switch(fake_db):
 
 def test_create_allow_partition_switch_defaults_on(fake_db):
     plan = Plan(
-        database="db", create=[CreateAction(table=_table("dbo.orders", columns=["id"]))]
+        database="db", create=[CreateAction(table=_table("dbo.orders", resolved_columns=["id"]))]
     )
     apply_plan(_FakeConn(), plan)
     assert fake_db.exec_calls[0][1]["allow_partition_switch"] == 1
@@ -151,7 +151,7 @@ def test_create_allow_partition_switch_defaults_on(fake_db):
 def test_create_is_idempotent(fake_db):
     fake_db.instances.add("dbo_orders")
     plan = Plan(
-        database="db", create=[CreateAction(table=_table("dbo.orders", columns=["id"]))]
+        database="db", create=[CreateAction(table=_table("dbo.orders", resolved_columns=["id"]))]
     )
     report = apply_plan(_FakeConn(), plan)
     assert report.ok
@@ -164,7 +164,7 @@ def test_enable_db_runs_first(fake_db):
     plan = Plan(
         database="db",
         enable_db=True,
-        create=[CreateAction(table=_table("dbo.orders", columns=["id"]))],
+        create=[CreateAction(table=_table("dbo.orders", resolved_columns=["id"]))],
     )
     report = apply_plan(_FakeConn(), plan)
     assert report.ok
@@ -175,7 +175,7 @@ def test_recreate_safe_creates_versioned_then_drops_old(fake_db):
     fake_db.instances.add("dbo_orders")
     fake_db.source_instances[("dbo", "orders")] = ["dbo_orders"]
     action = RecreateAction(
-        table=_table("dbo.orders", columns=["id", "new"]),
+        table=_table("dbo.orders", resolved_columns=["id", "new"]),
         instance=_instance("dbo.orders", columns=["id"]),
         reasons=["columns changed"],
     )
@@ -190,7 +190,7 @@ def test_recreate_safe_refuses_when_two_instances_exist(fake_db):
     fake_db.instances.update({"dbo_orders", "dbo_orders_v2"})
     fake_db.source_instances[("dbo", "orders")] = ["dbo_orders", "dbo_orders_v2"]
     action = RecreateAction(
-        table=_table("dbo.orders", columns=["id"]),
+        table=_table("dbo.orders", resolved_columns=["id"]),
         instance=_instance("dbo.orders", columns=["id"]),
         reasons=["columns changed"],
     )
@@ -212,7 +212,7 @@ def test_drop_disables_instances(fake_db):
 def test_lock_failure_raises(fake_db):
     fake_db.lock_result = -1
     plan = Plan(
-        database="db", create=[CreateAction(table=_table("dbo.orders", columns=["id"]))]
+        database="db", create=[CreateAction(table=_table("dbo.orders", resolved_columns=["id"]))]
     )
     with pytest.raises(DatabaseError, match="advisory lock"):
         apply_plan(_FakeConn(), plan)
@@ -223,8 +223,8 @@ def test_continue_on_error_proceeds(fake_db):
     plan = Plan(
         database="db",
         create=[
-            CreateAction(table=_table("dbo.a", columns=["id"])),
-            CreateAction(table=_table("dbo.b", columns=["id"])),
+            CreateAction(table=_table("dbo.a", resolved_columns=["id"])),
+            CreateAction(table=_table("dbo.b", resolved_columns=["id"])),
         ],
     )
     report = apply_plan(_FakeConn(), plan, continue_on_error=True)

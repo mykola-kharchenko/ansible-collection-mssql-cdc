@@ -263,7 +263,7 @@ def _drop(conn: pyodbc.Connection, action: DropAction) -> str:
 
 
 def _enable_table(conn: pyodbc.Connection, table: Table, capture_instance: str) -> None:
-    captured = ",".join(table.columns) if table.columns else None
+    captured = ",".join(table.resolved_columns) if table.resolved_columns else None
     db.exec_proc(
         conn,
         "sys.sp_cdc_enable_table",
