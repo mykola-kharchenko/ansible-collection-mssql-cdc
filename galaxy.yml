@@ -1,7 +1,7 @@
 ---
 namespace: mykola_kharchenko
 name: mssql_cdc
-version: 0.4.0
+version: 0.4.1
 
 readme: README.md
 
