@@ -67,11 +67,27 @@ options:
       - Desired capture-instance name. Defaults to C({schema}_{name}), matching
         SQL Server's own default.
     type: str
+  captured_columns:
+    description:
+      - Per-column desired state, applied as a B(merge) against the live
+        capture. Each entry is either a bare column name (treated as
+        C(state=present)) or a mapping C({name, state}) where C(state) is
+        C(present) or C(absent) (default C(present)).
+      - C(present) ensures the column is captured; C(absent) ensures it is not;
+        a column you do not list is left exactly as it is (never removed).
+      - Omit entirely to capture all columns. On a B(new) table, listing any
+        C(present) columns captures exactly those; listing only C(absent)
+        columns captures all-but-those.
+      - Any add or removal recreates the capture instance (CDC cannot edit a
+        capture in place); see I(recreate_strategy).
+    type: list
+    elements: raw
+    version_added: "0.3.0"
   columns:
     description:
-      - Source columns to capture. Omit (or pass an empty list) to capture all
-        columns. The module compares this set against the live capture and
-        recreates when it differs.
+      - B(Deprecated) — use I(captured_columns) instead. A plain list of column
+        names, treated as C(captured_columns) all with C(state=present). Cannot
+        be combined with I(captured_columns).
     type: list
     elements: str
   supports_net_changes:
@@ -90,6 +106,15 @@ options:
     description:
       - Filegroup the change table lives in. Leave unset to accept CDC's default.
     type: str
+  allow_partition_switch:
+    description:
+      - Whether C(ALTER TABLE ... SWITCH PARTITION) is allowed against the source
+        table while CDC is enabled. Maps to C(sp_cdc_enable_table @allow_partition_switch).
+      - Applied only when a capture instance is (re)created; it is not stored in
+        the CDC catalog, so changing it alone does not trigger a recreate.
+    type: bool
+    default: true
+    version_added: "0.3.0"
   recreate_strategy:
     description:
       - C(safe) creates a second C(_vN) instance with the new settings, confirms
@@ -141,8 +166,20 @@ EXAMPLES = r"""
     database: prod_orders
     schema: dbo
     name: customers
-    columns: [id, email, created_at]
+    captured_columns: [id, email, created_at]
     role_name: cdc_pii_reader
+
+- name: Stop capturing one column, leave the rest untouched
+  mykola_kharchenko.mssql_cdc.cdc_table:
+    host: prod-orders.db.internal
+    login_user: cdc_admin
+    login_password: "{{ vault_cdc_admin_pw }}"
+    database: prod_orders
+    schema: dbo
+    name: customers
+    captured_columns:
+      - name: ssn
+        state: absent
 
 - name: Decommission CDC on a retired table
   mykola_kharchenko.mssql_cdc.cdc_table:
@@ -188,6 +225,10 @@ from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engin
     Config,
     Table,
     merge_defaults,
+    normalize_captured_columns,
+)
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.errors import (
+    ConfigError,
 )
 from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.diff import (
     compute_diff,
@@ -203,24 +244,28 @@ from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils.cdc im
 )
 
 
-def _build_desired(params):
-    """Build a merged Config containing only this one source table."""
+def _build_desired(params, directives):
+    """Build a merged Config containing only this one source table.
+
+    ``directives`` is the normalized ``captured_columns`` intent (or ``None``
+    for "capture all"); the diff resolves it into a concrete column list.
+    """
     table = Table(
         schema_name=params["schema"],
         table_name=params["name"],
         capture_instance=params.get("capture_instance"),
-        columns=params.get("columns") or None,
+        captured_columns=directives,
         role_name=params.get("role_name"),
         supports_net_changes=params["supports_net_changes"],
         index_name=params.get("index_name"),
         filegroup_name=params.get("filegroup_name"),
+        allow_partition_switch=params["allow_partition_switch"],
         # _explicit drives merge_defaults; mark every supplied key so the user's
         # intent (including explicit nulls for role_name) survives the merge.
         _explicit=frozenset(
             k
             for k in (
                 "capture_instance",
-                "columns",
                 "role_name",
                 "supports_net_changes",
                 "index_name",
@@ -258,6 +303,72 @@ def _empty_desired(params):
     )
 
 
+def _resolve_directives(module, desired_state):
+    """Validate and normalize the column input into directives (or ``None``=all).
+
+    Fails when both ``columns`` and ``captured_columns`` are supplied; warns that
+    the legacy ``columns`` is deprecated; ignores (with a warning) any column
+    input when ``state=absent``.
+    """
+    params = module.params
+    captured = params.get("captured_columns")
+    legacy = params.get("columns")
+
+    if captured is not None and legacy is not None:
+        module.fail_json(
+            msg="Specify only one of 'captured_columns' or the deprecated 'columns'."
+        )
+
+    raw = captured
+    if legacy is not None:
+        module.deprecate(
+            "The 'columns' option is deprecated; use 'captured_columns' instead. "
+            "Note 'captured_columns' is merge-based: it only removes a column you "
+            "explicitly mark state=absent, never one you simply omit.",
+            version="2.0.0",
+            collection_name="mykola_kharchenko.mssql_cdc",
+        )
+        raw = legacy
+
+    if desired_state == "absent":
+        if raw is not None:
+            module.warn("captured_columns/columns is ignored when state=absent")
+        return None
+
+    try:
+        return normalize_captured_columns(raw)
+    except ConfigError as exc:
+        module.fail_json(msg=str(exc))
+
+
+def _preflight(module, conn, source_key, directives):
+    """Check the source table exists and any named columns are real.
+
+    Returns the ``{schema.table: [col, ...]}`` map for the diff to resolve the
+    new-table merge baseline. Fails the module with a readable message rather
+    than letting a raw ODBC error surface later from apply.
+    """
+    schema, name = module.params["schema"], module.params["name"]
+    try:
+        source_map = engine_state.read_source_columns(conn, [(schema, name)])
+    except Exception as exc:
+        fail_from_engine(module, exc, context="reading source columns")
+    columns = source_map.get(source_key, [])
+    if not columns:
+        module.fail_json(
+            msg=f"source table {source_key} not found (or is not a base table) in "
+            f"database {module.params['database']}"
+        )
+    if directives:
+        unknown = sorted({d.name for d in directives} - set(columns))
+        if unknown:
+            module.fail_json(
+                msg=f"captured_columns reference columns not on {source_key}: "
+                f"{', '.join(unknown)}"
+            )
+    return source_map
+
+
 def _state_snapshot(scoped):
     """Compact, JSON-friendly summary of a single source-table's live state for --diff."""
     if not scoped.instances:
@@ -277,20 +388,22 @@ def _desired_snapshot(state, params, plan):
     if state == "absent":
         return {"captured": False}
     if plan.create:
+        table = plan.create[0].table
         return {
             "captured": True,
-            "capture_instance": plan.create[0].table.capture_instance,
-            "supports_net_changes": plan.create[0].table.supports_net_changes,
-            "role_name": plan.create[0].table.role_name,
-            "columns": params.get("columns") or "all",
+            "capture_instance": table.capture_instance,
+            "supports_net_changes": table.supports_net_changes,
+            "role_name": table.role_name,
+            "columns": table.columns or "all",
         }
     if plan.recreate:
+        table = plan.recreate[0].table
         return {
             "captured": True,
-            "capture_instance": plan.recreate[0].table.capture_instance + " (recreated)",
-            "supports_net_changes": plan.recreate[0].table.supports_net_changes,
-            "role_name": plan.recreate[0].table.role_name,
-            "columns": params.get("columns") or "all",
+            "capture_instance": table.capture_instance + " (recreated)",
+            "supports_net_changes": table.supports_net_changes,
+            "role_name": table.role_name,
+            "columns": table.columns or "all",
         }
     # No changes: after == before.
     return None
@@ -303,11 +416,13 @@ def main():
         name=dict(type="str", required=True, aliases=["table"]),
         state=dict(type="str", choices=["present", "absent"], default="present"),
         capture_instance=dict(type="str"),
+        captured_columns=dict(type="list", elements="raw"),
         columns=dict(type="list", elements="str"),
         supports_net_changes=dict(type="bool", default=True),
         role_name=dict(type="str"),
         index_name=dict(type="str"),
         filegroup_name=dict(type="str"),
+        allow_partition_switch=dict(type="bool", default=True),
         recreate_strategy=dict(type="str", choices=["safe", "unsafe"], default="safe"),
     )
 
@@ -316,6 +431,7 @@ def main():
     source_key = f"{module.params['schema']}.{module.params['name']}"
     desired_state = module.params["state"]
     safe = module.params["recreate_strategy"] == "safe"
+    directives = _resolve_directives(module, desired_state)
 
     conn = connect_from_module(module)
     try:
@@ -326,7 +442,8 @@ def main():
 
         scoped = _scoped_state(actual_full, source_key)
         if desired_state == "present":
-            plan = compute_diff(_build_desired(module.params), scoped)
+            source_map = _preflight(module, conn, source_key, directives)
+            plan = compute_diff(_build_desired(module.params, directives), scoped, source_map)
         else:
             plan = compute_diff(_empty_desired(module.params), scoped)
 
