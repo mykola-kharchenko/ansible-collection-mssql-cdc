@@ -128,6 +128,26 @@ def test_create_enables_table(fake_db):
     assert fake_db.exec_calls[0][1]["captured_column_list"] == "id"
 
 
+def test_create_forwards_allow_partition_switch(fake_db):
+    plan = Plan(
+        database="db",
+        create=[
+            CreateAction(table=_table("dbo.orders", columns=["id"], allow_partition_switch=False))
+        ],
+    )
+    report = apply_plan(_FakeConn(), plan)
+    assert report.ok
+    assert fake_db.exec_calls[0][1]["allow_partition_switch"] == 0
+
+
+def test_create_allow_partition_switch_defaults_on(fake_db):
+    plan = Plan(
+        database="db", create=[CreateAction(table=_table("dbo.orders", columns=["id"]))]
+    )
+    apply_plan(_FakeConn(), plan)
+    assert fake_db.exec_calls[0][1]["allow_partition_switch"] == 1
+
+
 def test_create_is_idempotent(fake_db):
     fake_db.instances.add("dbo_orders")
     plan = Plan(

@@ -149,7 +149,7 @@ def _play(host, port, database, *, state_block="state: enabled"):
         trust_server_certificate: true
         schema: dbo
         name: orders
-        columns: [id, customer_id, status]
+        captured_columns: [id, customer_id, status]
 
     - mykola_kharchenko.mssql_cdc.cdc_table:
         host: "{host}"

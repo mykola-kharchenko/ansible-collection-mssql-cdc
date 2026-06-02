@@ -63,6 +63,19 @@ JOIN sys.columns c  ON c.object_id = t.object_id
 ORDER BY s.name, t.name, c.column_id;
 """
 
+# Columns of one source table in table order, regardless of CDC status. Unlike
+# _SQL_SOURCE_COLUMNS this does not join cdc.change_tables, so it works for a
+# table that is not captured yet (used to resolve the new-table merge baseline
+# and to validate that named captured_columns exist).
+_SQL_TABLE_COLUMNS = """
+SELECT c.name AS column_name
+FROM sys.columns c
+JOIN sys.tables t  ON c.object_id = t.object_id
+JOIN sys.schemas s ON t.schema_id = s.schema_id
+WHERE s.name = ? AND t.name = ?
+ORDER BY c.column_id;
+"""
+
 
 @dataclass
 class CaptureInstance:
@@ -156,3 +169,19 @@ def read_state(conn: pyodbc.Connection, database: str) -> ActualState:
         column_rows=db.run_query(conn, _SQL_CAPTURED_COLUMNS),
         source_column_rows=db.run_query(conn, _SQL_SOURCE_COLUMNS),
     )
+
+
+def read_source_columns(
+    conn: pyodbc.Connection, tables: list[tuple[str, str]]
+) -> dict[str, list[str]]:
+    """Return ``{"schema.table": [column, ...]}`` for each ``(schema, name)``.
+
+    Reads ``sys.columns`` directly so it works whether or not the table is under
+    CDC. A table that does not exist (or is a view, not a base table) maps to an
+    empty list, which callers treat as "not a usable source table".
+    """
+    result: dict[str, list[str]] = {}
+    for schema, name in tables:
+        rows = db.run_query(conn, _SQL_TABLE_COLUMNS, [schema, name])
+        result[f"{schema}.{name}"] = [row["column_name"] for row in rows]
+    return result

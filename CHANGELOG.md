@@ -6,6 +6,44 @@ collection adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+- `cdc_table` gains `captured_columns`, a **merge-based** per-column option. Each
+  entry is a column name or `{name, state}` (`state` defaults to `present`):
+  `present` ensures a column is captured, `absent` stops capturing it, and a
+  column you do not list is left exactly as it is. Omit the option to capture all
+  columns. On a brand-new table the listed `present` columns define the capture
+  set.
+- `cdc_table` gains `allow_partition_switch` (default `true`), exposing the last
+  `sp_cdc_enable_table` parameter that was previously hardcoded. It is applied
+  only on (re)create and is not a drift dimension.
+- Role: each `mssql_cdc_tables` entry now accepts `state: present|absent`
+  (default `present`) and `allow_partition_switch`; new
+  `mssql_cdc_default_allow_partition_switch` default. Tables not listed are left
+  untouched.
+- `cdc_table` now runs a preflight before enabling or recreating a capture
+  instance and fails with a readable message — in check mode too — instead of
+  surfacing a terse `sp_cdc_enable_table` error. It checks that the source table
+  exists and is a base table, is not memory-optimized, that named
+  `captured_columns` exist, and that `supports_net_changes` has a primary key or
+  an explicit unique `index_name` (and that a given `index_name` exists and is
+  unique).
+
+### Changed
+
+- Capture column reconciliation is now **non-destructive**: omitting a column no
+  longer removes it. This affects the deprecated `columns` option too — it is
+  now treated as `captured_columns` with every column `present`. To stop
+  capturing a column, mark it `state: absent`.
+- A table with `supports_net_changes: false` no longer perpetually recreates
+  over its `index_name` (the index only exists to support net changes).
+
+### Deprecated
+
+- `cdc_table`'s `columns` option — use `captured_columns`. Supplying both fails.
+- Role variable `mssql_cdc_remove` — use a `state: absent` entry in
+  `mssql_cdc_tables`.
+
 ## [0.2.0]
 
 ### Added
