@@ -70,8 +70,8 @@ the capture instance (CDC can't edit one in place).
 - hosts: prod_orders
   collections: [mykola_kharchenko.mssql_cdc]
   vars:
-    mssql_cdc_login_user: cdc_admin
-    mssql_cdc_login_password: "{{ vault_cdc_admin_pw }}"
+    mssql_cdc_login_user: "{{ vault_cdc_admin_user }}"      # vault
+    mssql_cdc_login_password: "{{ vault_cdc_admin_pw }}"    # vault
     mssql_cdc_database: prod_orders
     mssql_cdc_default_role_name: cdc_reader
     mssql_cdc_tables:
@@ -84,12 +84,13 @@ the capture instance (CDC can't edit one in place).
 
 ## Secrets & inventory layout
 
-All connection inputs — `host`, `port`, `login_user`, and above all
-`login_password` — are sensitive; keep the password (at least) in Ansible Vault
-and reference it as a normal variable:
+All connection inputs — `host`, `port`, `login_user`, `login_password` — are
+sensitive; keep the credentials (`login_user` and `login_password`) in Ansible
+Vault and reference them as normal variables:
 
 ```bash
 ansible-vault create group_vars/sqlservers_test/vault.yml
+#   vault_cdc_admin_user: cdc_admin
 #   vault_cdc_admin_pw: "S3cr3t"
 ansible-playbook reconcile.yml --ask-vault-pass      # or --vault-password-file
 ```
@@ -117,7 +118,7 @@ inventory.ini
 
 group_vars/
   sqlservers_test.yml      # shared connection layer
-    mssql_cdc_login_user: cdc_admin
+    mssql_cdc_login_user: "{{ vault_cdc_admin_user }}"     # vault
     mssql_cdc_login_password: "{{ vault_cdc_admin_pw }}"   # vault
     mssql_cdc_encrypt: false
     mssql_cdc_trust_server_certificate: true
