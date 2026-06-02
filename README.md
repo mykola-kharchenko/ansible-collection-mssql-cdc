@@ -74,13 +74,13 @@ Every module is `check_mode`-safe and supports `--diff`.
         database: prod_orders
         schema: dbo
         name: "{{ item.name }}"
-        columns: "{{ item.columns | default(omit) }}"
+        captured_columns: "{{ item.captured_columns | default(omit) }}"
         role_name: cdc_reader
         state: present
         <<: *mssql_login
       loop:
-        - { name: orders,    columns: [id, customer_id, status, updated_at] }
-        - { name: customers, columns: [id, email] }
+        - { name: orders,    captured_columns: [id, customer_id, status, updated_at] }
+        - { name: customers, captured_columns: [id, email] }
 ```
 
 Run it normal, or in plan/drift mode:
