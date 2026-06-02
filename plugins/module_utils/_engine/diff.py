@@ -13,7 +13,7 @@ from __future__ import annotations
 __metaclass__ = type
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.config import Config, Table
 from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.state import ActualState, CaptureInstance
@@ -110,22 +110,33 @@ class Plan:
         }
 
 
-def compute_diff(desired: Config, actual: ActualState) -> Plan:
+def compute_diff(
+    desired: Config,
+    actual: ActualState,
+    source_columns: dict[str, list[str]] | None = None,
+) -> Plan:
     """Compute the reconciliation :class:`Plan` from desired vs actual state.
 
     Args:
         desired: A config with :func:`merge_defaults` already
             applied, so every table carries concrete settings.
         actual: The live state read from the database.
+        source_columns: Optional map of ``schema.table`` -> full source column
+            list, used to resolve ``captured_columns`` directives for a table
+            that is not captured yet (the new-table merge baseline). Not needed
+            when every desired column intent is a bare ``present`` list.
 
     Returns:
         A :class:`Plan` partitioning every table into create / recreate / drop /
-        unchanged, plus whether database-level CDC must be enabled first.
+        unchanged, plus whether database-level CDC must be enabled first. Every
+        action's :class:`Table` carries a *resolved* ``columns`` list (or
+        ``None`` for "capture all") — directives never reach apply.
     """
     plan = Plan(database=desired.database)
 
     by_source = actual.by_source()
     desired_keys = set(desired.tables)
+    source_columns = source_columns or {}
 
     # Database-level CDC must be on before any table can be enabled.
     plan.enable_db = bool(desired.tables) and not actual.cdc_enabled
@@ -133,15 +144,20 @@ def compute_diff(desired: Config, actual: ActualState) -> Plan:
     for key, table in desired.tables.items():
         instances = by_source.get(key, [])
         if not instances:
-            plan.create.append(CreateAction(table=table))
+            resolved = _resolve_desired_columns(table, None, source_columns.get(key))
+            plan.create.append(CreateAction(table=_with_columns(table, resolved)))
             continue
 
         instance = _instance_to_compare(table, instances)
-        reasons = _diff_settings(table, instance)
+        resolved = _resolve_desired_columns(table, instance, source_columns.get(key))
+        resolved_table = _with_columns(table, resolved)
+        reasons = _diff_settings(resolved_table, instance)
         if reasons:
-            plan.recreate.append(RecreateAction(table=table, instance=instance, reasons=reasons))
+            plan.recreate.append(
+                RecreateAction(table=resolved_table, instance=instance, reasons=reasons)
+            )
         else:
-            plan.unchanged.append(UnchangedAction(table=table, instance=instance))
+            plan.unchanged.append(UnchangedAction(table=resolved_table, instance=instance))
 
     for source, instances in by_source.items():
         if source not in desired_keys:
@@ -155,6 +171,51 @@ def compute_diff(desired: Config, actual: ActualState) -> Plan:
             )
 
     return plan
+
+
+def _resolve_desired_columns(
+    table: Table,
+    instance: CaptureInstance | None,
+    source_columns: list[str] | None,
+) -> set[str] | None:
+    """Resolve ``captured_columns`` directives into a concrete desired set.
+
+    Returns ``None`` for "capture all columns", otherwise the explicit set to
+    capture. Merge rules (the per-column ``state`` model):
+
+    - No directives (``captured_columns is None``): fall back to the legacy
+      explicit ``columns`` list (``None`` = all). This keeps the engine's
+      original exact-set behavior for callers that set ``columns`` directly.
+    - Already-captured table: start from the live captured set, add the
+      ``present`` columns, drop the ``absent`` ones; unmentioned columns stay.
+    - Not-yet-captured table: if any ``present`` columns are listed they define
+      the new capture (option ii); otherwise the baseline is every source
+      column (``source_columns``), minus any ``absent``.
+    """
+    directives = table.captured_columns
+    if directives is None:
+        return set(table.columns) if table.columns is not None else None
+
+    present = {d.name for d in directives if d.state == "present"}
+    absent = {d.name for d in directives if d.state == "absent"}
+
+    if instance is not None:
+        baseline = set(instance.columns)
+    elif present:
+        baseline = set(present)
+    else:
+        baseline = set(source_columns or [])
+
+    return (baseline | present) - absent
+
+
+def _with_columns(table: Table, resolved: set[str] | None) -> Table:
+    """Return ``table`` with its resolved capture list stamped onto ``columns``.
+
+    Apply only ever reads ``columns``; sorting keeps output deterministic (CDC
+    captures in source order regardless, so the list order is cosmetic).
+    """
+    return replace(table, columns=None if resolved is None else sorted(resolved))
 
 
 def _instance_to_compare(table: Table, instances: list[CaptureInstance]) -> CaptureInstance:
@@ -189,8 +250,14 @@ def _diff_settings(table: Table, instance: CaptureInstance) -> list[str]:
         reasons.append(f"role_name changed ({instance.role_name} -> {table.role_name})")
     # index_name/filegroup_name are auto-selected by CDC (e.g. the PK) when not
     # specified, so a desired None means "accept whatever CDC chose" — only a
-    # value the user explicitly set and that differs is a real change.
-    if table.index_name is not None and table.index_name != instance.index_name:
+    # value the user explicitly set and that differs is a real change. The index
+    # only exists to support net changes, so when those are off the live value
+    # is meaningless and comparing it would cause a perpetual recreate.
+    if (
+        table.supports_net_changes
+        and table.index_name is not None
+        and table.index_name != instance.index_name
+    ):
         reasons.append(f"index_name changed ({instance.index_name} -> {table.index_name})")
     if table.filegroup_name is not None and table.filegroup_name != instance.filegroup_name:
         reasons.append(

@@ -15,9 +15,71 @@ __metaclass__ = type
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.errors import (
+    ConfigError,
+)
+
 # Fields a table may inherit from the config-level ``defaults`` block when it
 # does not set them explicitly.
 _INHERITABLE = ("role_name", "supports_net_changes", "index_name", "filegroup_name")
+
+_COLUMN_STATES = ("present", "absent")
+
+
+@dataclass(frozen=True)
+class ColumnDirective:
+    """A single ``captured_columns`` entry: a column and the state desired for it.
+
+    ``present`` means "ensure this column is captured"; ``absent`` means "ensure
+    it is not". Columns not named in any directive are left exactly as they are
+    (see :func:`...diff._resolve_desired_columns` for the merge rules).
+    """
+
+    name: str
+    state: str = "present"
+
+
+def normalize_captured_columns(raw: Any) -> list[ColumnDirective] | None:
+    """Normalize the module's ``captured_columns`` input into directives.
+
+    Accepts ``None`` (capture all — passed through unchanged), or a list whose
+    items are bare strings (treated as ``state: present``) or mappings with a
+    required ``name`` and an optional ``state`` (default ``present``). Raises
+    :class:`ConfigError` on anything malformed so the module can surface a clean
+    message rather than failing deep in the diff.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, (list, tuple)):
+        raise ConfigError("captured_columns must be a list")
+
+    directives: list[ColumnDirective] = []
+    for item in raw:
+        if isinstance(item, str):
+            name, state = item, "present"
+        elif isinstance(item, dict):
+            name = item.get("name")
+            state = item.get("state") or "present"
+            extra = set(item) - {"name", "state"}
+            if extra:
+                raise ConfigError(
+                    "captured_columns entry has unknown keys "
+                    f"{sorted(extra)} (allowed: name, state)"
+                )
+        else:
+            raise ConfigError(
+                "captured_columns entries must be a string or a {name, state} mapping, "
+                f"got {type(item).__name__}"
+            )
+        if not name or not isinstance(name, str):
+            raise ConfigError("captured_columns entry is missing a 'name'")
+        if state not in _COLUMN_STATES:
+            raise ConfigError(
+                f"captured_columns '{name}': state must be one of {list(_COLUMN_STATES)}, "
+                f"got {state!r}"
+            )
+        directives.append(ColumnDirective(name=name, state=state))
+    return directives
 
 
 @dataclass
@@ -43,20 +105,32 @@ class Defaults:
 class Table:
     """Desired CDC settings for a single source table.
 
-    ``columns is None`` means "capture all columns"; an empty list would mean
-    "capture nothing", which CDC does not allow. ``_explicit`` records which
-    fields the caller actually set, so :func:`merge_defaults` knows what to
-    inherit from the per-database :class:`Defaults` block.
+    Two distinct column fields:
+
+    - ``captured_columns`` is the caller's *intent* — a list of
+      :class:`ColumnDirective` (or ``None`` for "capture all"). The diff engine
+      merges these against the live captured set (present-listed kept, absent
+      removed, unmentioned left alone) to compute the concrete set.
+    - ``columns`` is the *resolved* explicit list (or ``None`` = all) that apply
+      passes to ``sp_cdc_enable_table``. The diff stamps it onto each action's
+      table, so apply never sees directives.
+
+    An empty resolved ``columns`` would mean "capture nothing", which CDC does
+    not allow. ``_explicit`` records which fields the caller actually set, so
+    :func:`merge_defaults` knows what to inherit from the per-database
+    :class:`Defaults` block.
     """
 
     schema_name: str
     table_name: str
     capture_instance: str | None = None
     columns: list[str] | None = None
+    captured_columns: list[ColumnDirective] | None = None
     role_name: str | None = None
     supports_net_changes: bool | None = None
     index_name: str | None = None
     filegroup_name: str | None = None
+    allow_partition_switch: bool = True
     _explicit: frozenset[str] = field(default_factory=frozenset, repr=False, compare=False)
 
     @property

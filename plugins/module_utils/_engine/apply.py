@@ -275,7 +275,7 @@ def _enable_table(conn: pyodbc.Connection, table: Table, capture_instance: str) 
         index_name=table.index_name,
         captured_column_list=captured,
         filegroup_name=table.filegroup_name,
-        allow_partition_switch=1,
+        allow_partition_switch=1 if table.allow_partition_switch else 0,
     )
 
 

@@ -6,6 +6,7 @@ from __future__ import annotations
 __metaclass__ = type
 
 from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.config import (
+    ColumnDirective,
     Config,
     Table,
 )
@@ -127,6 +128,77 @@ def test_columns_all_matches_full_source_set():
     desired = _config(_table("dbo.orders", columns=None))
     actual = _state(
         _instance("dbo.orders", columns=["id", "name"], source_columns=["id", "name"])
+    )
+    assert [a.source for a in compute_diff(desired, actual).unchanged] == ["dbo.orders"]
+
+
+def _cc(*pairs):
+    """Build a captured_columns directive list from (name, state) pairs."""
+    return [ColumnDirective(name, state) for name, state in pairs]
+
+
+def test_merge_present_adds_column_keeping_others():
+    desired = _config(_table("dbo.orders", captured_columns=_cc(("email", "present"))))
+    actual = _state(_instance("dbo.orders", columns=["id", "name"]))
+    plan = compute_diff(desired, actual)
+    assert len(plan.recreate) == 1
+    assert any("added email" in r for r in plan.recreate[0].reasons)
+    assert set(plan.recreate[0].table.columns) == {"id", "name", "email"}
+
+
+def test_merge_absent_removes_only_named_column():
+    desired = _config(_table("dbo.orders", captured_columns=_cc(("email", "absent"))))
+    actual = _state(_instance("dbo.orders", columns=["id", "name", "email"]))
+    plan = compute_diff(desired, actual)
+    assert any("removed email" in r for r in plan.recreate[0].reasons)
+    assert set(plan.recreate[0].table.columns) == {"id", "name"}
+
+
+def test_merge_unmentioned_column_is_left_alone():
+    # Only 'id' is named present; 'name' is unmentioned and must stay captured,
+    # so the live state already matches and nothing changes.
+    desired = _config(_table("dbo.orders", captured_columns=_cc(("id", "present"))))
+    actual = _state(_instance("dbo.orders", columns=["id", "name"]))
+    plan = compute_diff(desired, actual)
+    assert [a.source for a in plan.unchanged] == ["dbo.orders"]
+    assert not plan.recreate
+
+
+def test_new_table_present_list_defines_capture_set():
+    # Option ii: on a brand-new table, the present list IS the captured set.
+    desired = _config(
+        _table("dbo.orders", captured_columns=_cc(("id", "present"), ("name", "present")))
+    )
+    plan = compute_diff(desired, _state())
+    assert plan.create[0].table.columns == ["id", "name"]
+
+
+def test_new_table_absent_only_uses_all_source_columns_minus_absent():
+    desired = _config(_table("dbo.orders", captured_columns=_cc(("secret", "absent"))))
+    plan = compute_diff(
+        desired, _state(), source_columns={"dbo.orders": ["id", "name", "secret"]}
+    )
+    assert plan.create[0].table.columns == ["id", "name"]
+
+
+def test_index_name_ignored_when_net_changes_off():
+    # index_name only supports net changes; with them off the live value is
+    # meaningless and must not provoke a perpetual recreate.
+    desired = _config(
+        _table(
+            "dbo.orders",
+            columns=["id"],
+            supports_net_changes=False,
+            index_name="ix_custom",
+        )
+    )
+    actual = _state(
+        _instance(
+            "dbo.orders",
+            columns=["id"],
+            supports_net_changes=False,
+            index_name="PK__orders",
+        )
     )
     assert [a.source for a in compute_diff(desired, actual).unchanged] == ["dbo.orders"]
 

@@ -10,6 +10,7 @@ from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engin
 )
 from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.state import (
     build_state,
+    read_source_columns,
 )
 
 
@@ -103,3 +104,17 @@ def test_build_state_parses_instances_and_columns():
     products = by_source["dbo.products"][0]
     assert products.supports_net_changes is False
     assert products.captures_all_columns is True
+
+
+def test_read_source_columns_maps_each_table(monkeypatch):
+    cols = {("dbo", "orders"): ["id", "name"], ("dbo", "missing"): []}
+
+    def fake_run_query(conn, sql, params=None):
+        assert "WHERE s.name = ? AND t.name = ?" in sql
+        return [{"column_name": c} for c in cols[(params[0], params[1])]]
+
+    monkeypatch.setattr(db, "run_query", fake_run_query)
+    result = read_source_columns(None, [("dbo", "orders"), ("dbo", "missing")])
+    # Missing/non-base tables map to an empty list, which callers treat as
+    # "table not found".
+    assert result == {"dbo.orders": ["id", "name"], "dbo.missing": []}

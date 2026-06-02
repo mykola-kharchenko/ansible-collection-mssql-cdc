@@ -5,11 +5,18 @@ from __future__ import annotations
 
 __metaclass__ = type
 
+import pytest
+
 from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.config import (
+    ColumnDirective,
     Config,
     Defaults,
     Table,
     merge_defaults,
+    normalize_captured_columns,
+)
+from ansible_collections.mykola_kharchenko.mssql_cdc.plugins.module_utils._engine.errors import (
+    ConfigError,
 )
 
 
@@ -49,6 +56,52 @@ def test_merge_defaults_fills_inherited_fields():
     assert customers.capture_instance == "dbo_customers"
     # columns omitted -> capture all
     assert customers.columns is None
+
+
+def test_normalize_none_passes_through():
+    assert normalize_captured_columns(None) is None
+
+
+def test_normalize_bare_strings_default_present():
+    assert normalize_captured_columns(["Id", "Name"]) == [
+        ColumnDirective("Id", "present"),
+        ColumnDirective("Name", "present"),
+    ]
+
+
+def test_normalize_dicts_with_state():
+    result = normalize_captured_columns(
+        [{"name": "Id"}, {"name": "Name", "state": "absent"}]
+    )
+    assert result == [
+        ColumnDirective("Id", "present"),
+        ColumnDirective("Name", "absent"),
+    ]
+
+
+def test_normalize_mixed_strings_and_dicts():
+    result = normalize_captured_columns(["Id", {"name": "Name", "state": "absent"}])
+    assert result == [ColumnDirective("Id", "present"), ColumnDirective("Name", "absent")]
+
+
+def test_normalize_rejects_bad_state():
+    with pytest.raises(ConfigError):
+        normalize_captured_columns([{"name": "Id", "state": "maybe"}])
+
+
+def test_normalize_rejects_missing_name():
+    with pytest.raises(ConfigError):
+        normalize_captured_columns([{"state": "present"}])
+
+
+def test_normalize_rejects_unknown_keys():
+    with pytest.raises(ConfigError):
+        normalize_captured_columns([{"name": "Id", "captured": True}])
+
+
+def test_normalize_rejects_non_list():
+    with pytest.raises(ConfigError):
+        normalize_captured_columns("Id")
 
 
 def test_explicit_null_role_overrides_default():
