@@ -447,7 +447,7 @@ def main():
                 errors = engine_validate.validate_table(desired.tables[source_key], facts)
                 if errors:
                     module.fail_json(
-                        msg="cannot enable CDC on " + source_key + ": " + "; ".join(errors)
+                        msg=f"cannot enable CDC on {source_key}: {'; '.join(errors)}"
                     )
         else:
             plan = compute_diff(_empty_desired(module.params), scoped)
