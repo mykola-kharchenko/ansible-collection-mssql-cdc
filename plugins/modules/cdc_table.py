@@ -371,7 +371,10 @@ def _state_snapshot(scoped):
         "capture_instance": primary.capture_instance,
         "supports_net_changes": primary.supports_net_changes,
         "role_name": primary.role_name,
-        "columns": list(primary.columns),
+        # Sort to match the resolved (sorted) desired side, so the --diff shows
+        # only real add/remove (+/-) and never spurious reorder churn; columns
+        # that stay appear as unmarked context lines.
+        "columns": sorted(primary.columns),
     }
 
 
