@@ -6,6 +6,21 @@ collection adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+### Added
+
+- README: a "Rolling back a change" section — because management is declarative,
+  a rollback is re-applying the previous `mssql_cdc_tables` (preview with
+  `--check --diff`); it also spells out that dropped/recreated capture instances
+  discard their change-table rows (settings roll back, captured data does not).
+
+### Changed
+
+- Docs/examples now vault the login **username** as well as the password
+  (`mssql_cdc_login_user: "{{ vault_cdc_admin_user }}"`), and the role README's
+  Vault how-to seeds both.
+- Docs note that the integration tests run under **Podman** as well as Docker
+  (point `DOCKER_HOST` at the Podman socket).
+
 ## [0.4.0]
 
 ### Added

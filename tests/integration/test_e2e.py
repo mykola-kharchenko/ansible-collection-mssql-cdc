@@ -6,8 +6,10 @@ guarantees: an initial apply makes the expected changes, a re-run is idempotent,
 ``--check`` reports changes without mutating, and a tweaked config produces a
 recreate.
 
-Skips cleanly if testcontainers, Docker or the ODBC driver are unavailable, so
-a developer without them still gets a green ``ansible-test sanity`` suite.
+Skips cleanly if testcontainers, a container runtime (Docker or Podman) or the
+ODBC driver are unavailable, so a developer without them still gets a green
+``ansible-test sanity`` suite. For Podman, point ``DOCKER_HOST`` at the Podman
+socket (see the README).
 """
 
 from __future__ import annotations

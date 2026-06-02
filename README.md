@@ -65,7 +65,7 @@ vars and let one play converge it:
   gather_facts: false
   collections: [mykola_kharchenko.mssql_cdc]
   vars:
-    mssql_cdc_login_user: cdc_admin
+    mssql_cdc_login_user: "{{ vault_cdc_admin_user }}"   # vault
     mssql_cdc_login_password: "{{ vault_cdc_admin_pw }}"   # vault
     mssql_cdc_database: prod_orders
     mssql_cdc_default_role_name: cdc_reader
@@ -101,7 +101,7 @@ If you'd rather not use the role, drive the modules yourself:
   vars:
     mssql_login: &mssql_login
       host: "{{ inventory_hostname }}"
-      login_user: cdc_admin
+      login_user: "{{ vault_cdc_admin_user }}"   # vault
       login_password: "{{ vault_cdc_admin_pw }}"   # vault
   tasks:
     - name: Database-level CDC
@@ -157,7 +157,7 @@ bundled [`playbooks/drift.yml`](playbooks/drift.yml): it gathers live state with
 ```yaml
 - mykola_kharchenko.mssql_cdc.cdc_facts:
     host: "{{ inventory_hostname }}"
-    login_user: cdc_admin
+    login_user: "{{ vault_cdc_admin_user }}"   # vault
     login_password: "{{ vault_cdc_admin_pw }}"
     database: prod_orders
   register: cdc
@@ -170,6 +170,28 @@ bundled [`playbooks/drift.yml`](playbooks/drift.yml): it gathers live state with
     msg: dbo.orders is not under CDC
   when: "'dbo.orders' not in (ansible_facts.mssql_cdc.tables | map(attribute='source_table'))"
 ```
+
+## Rolling back a change
+
+CDC management here is **declarative**, so a rollback is simply re-applying the
+previous desired state — there is no separate "undo" command:
+
+1. Restore the previous `mssql_cdc_tables` — revert the vars commit, or keep a
+   snapshot first (`cdc_facts` registers the live config; save it before a risky
+   change and re-apply it later).
+2. Re-run the role or `cdc_table`, previewing with `--check --diff`:
+
+```bash
+ansible-playbook playbooks/apply.yml --check --diff   # preview the rollback
+ansible-playbook playbooks/apply.yml                  # apply it
+```
+
+One hard limit: reverting *settings* (captured columns, `role_name`,
+`supports_net_changes`, …) works, but a capture instance that was **dropped or
+recreated discards its change-table rows** — CDC cannot restore that history.
+You roll back configuration, not captured data. Safe recreate (the default)
+avoids a *consumer gap* but does not preserve the old instance's accumulated
+changes beyond the brief overlap.
 
 ## Layout
 
@@ -219,9 +241,19 @@ cp -r . /tmp/coll/ansible_collections/mykola_kharchenko/mssql_cdc
 ( cd /tmp/coll/ansible_collections/mykola_kharchenko/mssql_cdc \
   && ansible-test sanity --python 3.12 )
 
-# Integration (needs Docker + ODBC Driver 18)
+# Integration (needs a container runtime — Docker or Podman — + ODBC Driver 18)
 pip install -r tests/integration/requirements.txt
 ansible-galaxy collection install .
+pytest tests/integration -v
+```
+
+testcontainers talks to whatever Docker-compatible socket it is pointed at, so
+**Podman works** — expose its user socket and aim testcontainers at it:
+
+```bash
+systemctl --user enable --now podman.socket
+export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/podman/podman.sock"
+export TESTCONTAINERS_RYUK_DISABLED=true   # Ryuk wants a privileged socket; skip it under rootless Podman
 pytest tests/integration -v
 ```
 
