@@ -82,6 +82,45 @@ the capture instance (CDC can't edit one in place).
     - mykola_kharchenko.mssql_cdc.cdc
 ```
 
+## Inventory & group_vars layout
+
+Variable sourcing is plain Ansible — the role only consumes the values already
+resolved for each host, so spread them across whatever groups make sense. A
+common split keeps the connection layer with the SQL Server group and the CDC
+intent with a per-database group:
+
+```text
+inventory.ini
+  [sqlservers_test]
+  headoffice
+  [cdc_headoffice]
+  headoffice
+
+group_vars/
+  sqlservers_test.yml      # shared connection layer
+    mssql_cdc_login_user: cdc_admin
+    mssql_cdc_login_password: "{{ vault_cdc_admin_pw }}"   # vault
+    mssql_cdc_encrypt: false
+    mssql_cdc_trust_server_certificate: true
+
+  cdc_headoffice.yml       # desired CDC state for this database
+    mssql_cdc_database: headoffice
+    mssql_cdc_tables:
+      - { schema: dbo, name: orders, captured_columns: [id, status] }
+      - { schema: dbo, name: legacy, state: absent }
+```
+
+`headoffice` belongs to both groups, so it inherits the connection vars *and*
+the table list — no matter which group you target. `--limit sqlservers_test`
+and `--limit cdc_headoffice` both run it with the same merged vars: the group
+pattern only selects *which hosts* run, never *which vars* apply. To act on
+hosts in both groups, intersect with `--limit 'sqlservers_test:&cdc_headoffice'`.
+
+One gotcha: if the **same** variable (e.g. `mssql_cdc_tables`) is set in more
+than one group, Ansible takes the last by group precedence — it does **not**
+merge the lists. Keep each variable in a single authoritative group, or combine
+explicitly in your play (`mssql_cdc_tables: "{{ tables_a + tables_b }}"`).
+
 ## Tags
 
 - `cdc_db` — only the database-level step

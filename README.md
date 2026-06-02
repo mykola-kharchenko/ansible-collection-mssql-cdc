@@ -48,26 +48,63 @@ The Python modules need the Microsoft **ODBC Driver 18 for SQL Server** and
 | `mykola_kharchenko.mssql_cdc.cdc_table`             | Manage a capture instance (present/absent, settings)    |
 | `mykola_kharchenko.mssql_cdc.cdc_facts`             | Read live CDC state into `ansible_facts.mssql_cdc`      |
 
+Plus the **`cdc` role** (`mykola_kharchenko.mssql_cdc.cdc`), which wraps these
+modules into one declarative play driven by a table list — the recommended entry
+point. See [roles/cdc/README.md](roles/cdc/README.md).
+
 Every module is `check_mode`-safe and supports `--diff`.
 
 ## Quick start
+
+The quickest path is the bundled **`cdc` role** — describe the desired state as
+vars and let one play converge it:
 
 ```yaml
 - name: Manage CDC on prod_orders
   hosts: prod_orders
   gather_facts: false
   collections: [mykola_kharchenko.mssql_cdc]
-
   vars:
-    mssql_login: { host: "{{ inventory_hostname }}", login_user: cdc_admin,
-                   login_password: "{{ vault_cdc_admin_pw }}" }
+    mssql_cdc_login_user: cdc_admin
+    mssql_cdc_login_password: "{{ vault_cdc_admin_pw }}"   # vault
+    mssql_cdc_database: prod_orders
+    mssql_cdc_default_role_name: cdc_reader
+    mssql_cdc_tables:
+      - { schema: dbo, name: orders, captured_columns: [id, customer_id, status] }
+      - { schema: dbo, name: customers }                    # capture all columns
+      - { schema: dbo, name: legacy, state: absent }        # drop the capture instance
+  roles:
+    - mykola_kharchenko.mssql_cdc.cdc
+```
 
+`captured_columns` is a **merge**: a column you don't list is left alone. To stop
+capturing just one column without disturbing the rest, mark it `absent`:
+
+```yaml
+    mssql_cdc_tables:
+      - schema: dbo
+        name: customers
+        captured_columns:
+          - { name: ssn, state: absent }   # remove ssn; keep every other captured column
+```
+
+See the [role README](roles/cdc/README.md) for every variable and an
+inventory/group_vars layout.
+
+<details>
+<summary>Lower-level: calling the modules directly</summary>
+
+If you'd rather not use the role, drive the modules yourself:
+
+```yaml
+  vars:
+    mssql_login: &mssql_login
+      host: "{{ inventory_hostname }}"
+      login_user: cdc_admin
+      login_password: "{{ vault_cdc_admin_pw }}"   # vault
   tasks:
     - name: Database-level CDC
-      cdc_db:
-        database: prod_orders
-        state: enabled
-        <<: *mssql_login
+      cdc_db: { database: prod_orders, state: enabled, <<: *mssql_login }
 
     - name: Capture instances
       cdc_table:
@@ -83,11 +120,54 @@ Every module is `check_mode`-safe and supports `--diff`.
         - { name: customers, captured_columns: [id, email] }
 ```
 
-Run it normal, or in plan/drift mode:
+</details>
+
+Run it normally, or as a plan:
 
 ```bash
 ansible-playbook cdc.yml                  # apply
-ansible-playbook cdc.yml --check --diff   # plan + drift report
+ansible-playbook cdc.yml --check --diff   # plan: report changes, touch nothing
+```
+
+## Drift detection
+
+Because every module is `check_mode`- and `--diff`-aware, a no-write run doubles
+as a drift report — each capture instance whose live settings differ from the
+desired state is reported with *why* it would change:
+
+```bash
+ansible-playbook playbooks/apply.yml --check --diff
+```
+
+```text
+changed: [headoffice] => recreate dbo.orders (columns changed (added updated_by))
+changed: [headoffice] => enable CDC on dbo.invoices
+```
+
+For a CI cron that should *fail* when a required table isn't captured, use the
+bundled [`playbooks/drift.yml`](playbooks/drift.yml): it gathers live state with
+`cdc_facts` and fails the play on any missing capture instance.
+
+## Reading live state (`cdc_facts`)
+
+`cdc_facts` snapshots the live CDC configuration into `ansible_facts.mssql_cdc`
+(`cdc_enabled` plus a `tables` list) for your own assertions or reporting:
+
+```yaml
+- mykola_kharchenko.mssql_cdc.cdc_facts:
+    host: "{{ inventory_hostname }}"
+    login_user: cdc_admin
+    login_password: "{{ vault_cdc_admin_pw }}"
+    database: prod_orders
+  register: cdc
+
+- ansible.builtin.debug:
+    var: ansible_facts.mssql_cdc.tables
+
+- name: Fail if orders is not captured
+  ansible.builtin.fail:
+    msg: dbo.orders is not under CDC
+  when: "'dbo.orders' not in (ansible_facts.mssql_cdc.tables | map(attribute='source_table'))"
 ```
 
 ## Layout
